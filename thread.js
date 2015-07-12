@@ -165,7 +165,7 @@ function renderThread(threadData,uri){
     ge("content").innerHTML="";
     var addedImagesCount=threadData.length;
     
-    //executed when each added image is loaded
+    //executed when each added image gets loaded
     function imgOnload(){
         addedImagesCount--;
         if(addedImagesCount === 0) highlightMessage(selectedMessageId);
