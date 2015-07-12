@@ -1,0 +1,107 @@
+/* 
+    Created on : 19.04.2015, 18:07:05
+*/
+body{
+    font-family: "PT Sans", "Open Sans",sans-serif;
+}
+#testerDebugConsole{
+    background:black;
+    font-family: monospace;
+    color: gold;
+    width: 100%;
+}
+div#info{
+    background: black;
+    color: gold;
+}
+div.message{
+    overflow: hidden;
+    min-width: 300px;
+}
+div.message.selected{
+    border: 2px solid crimson;    
+}
+div.message div.message, div.message div.message .messageText{
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0;
+    padding-right: 0;
+}
+div.message div.message{
+    width: 100%;
+}
+.messagePic{
+    float:left;
+    margin: 5px;
+    box-shadow: 0 0 5px black;
+    max-width: 90%;
+    /*background: white;*/
+}
+a.msg_ref{
+    color: #a30;
+    cursor: pointer;
+    text-decoration: none;
+}
+.spoiler{
+    color: black;
+    background: black;
+}
+.spoiler:hover{
+    background: transparent;
+    color: inherit;
+}
+.messageTitle{
+    font-weight: bold;
+}
+.messageTitle:not(:empty)::before{
+    content:"«";
+}
+.messageTitle:not(:empty)::after{
+    content: "»";
+}
+.messageName:not(:empty)::before{
+    content: " by ";
+}
+.messageName:empty::before{
+    content: " by Anonymous";
+}
+#messageTemplate{
+    display: none;
+}
+/* Hiding <img>s with no SRC attribute: */
+img:not([src]) {
+   display: none;
+}
+a.origThread:not([href]){
+    display: none;
+}
+a{
+    cursor: pointer;
+}
+input,textarea{
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* Menu: */
+ul.ulMenu{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+ul.ulMenu li{
+    background: rgba(255,255,255,0.9);
+    margin: 2px;
+    display: none;
+    cursor: pointer;
+}
+ul.ulMenu li:hover{
+    background: white;
+    font-weight: bold;
+}
+ul.ulMenu li ul{
+    display: none;
+}
+ul.ulMenu li:hover ul, ul.ulMenu:hover li{
+    display: block;
+}

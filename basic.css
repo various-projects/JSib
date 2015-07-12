@@ -1,0 +1,15 @@
+/* 
+    Created on : 28.05.2015, 9:42:07
+*/
+
+body{
+    background: #ccc;
+}
+div.message{
+    border: 1px solid black;
+    border-radius: 7px;
+    padding: 2px 5px;
+    margin: 5px;
+    color: black;
+    background: rgba(255,255,255,0.5);
+}

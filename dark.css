@@ -1,0 +1,65 @@
+/* 
+    Created on : 28.05.2015
+    Author     : 0chan.cc Anonymous
+*/
+
+body {
+    background-color: #223344;
+    font-size: 13px;
+    color: #eee;
+}
+input:not([type=file]), textarea {
+    border: 0px;
+    background-color: rgba(255, 255, 255, .8);
+    padding: 5px;
+    transition: background-color .3s;
+}
+input:not([type=file]):focus, textarea:focus {
+       background-color: rgba(255, 255, 255, .9); 
+}
+input[type=submit] {
+    background-color: rgba(0 ,0 , 0, .3);
+    cursor: pointer;
+    color: #eee;
+}
+div.message {
+    border-radius: 0px;
+    border: none;
+    margin: 10px;
+    background-color: rgba(255, 255, 255, .2);
+    padding: 12px;
+    color: #e0e0e0;
+}
+div.message div.message{
+    background-color: rgba(0,0,0,.2);
+    /*border: 10px solid rgba(255, 255, 255, .2);*/
+    /*box-shadow: 0 0 10px rgba(255, 255, 255, .5);*/
+}
+div.message a {
+    color: rgba(255, 50, 30, .8);
+}
+div.message .messagePic {
+    margin: 10px;
+    background-color: #eee;
+}
+div.message .messageText {
+    padding: 10px;
+    display: block;
+}
+div.message .messageHeader {
+    color: #aaa;
+    font-style: italic;
+}
+div.message .msg_ref {
+    color: #ff8800;
+    border-bottom: 1px solid rgba(255, 127, 0, .0);
+}
+div.message  .msg_ref:hover {
+    border-color: rgba(255, 127, 0, .8);
+}
+.ulMenu svg{
+    fill: rgba(255, 255, 255, 0.8);
+}
+ul.ulMenu li{
+    color: black;
+}
