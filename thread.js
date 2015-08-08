@@ -48,8 +48,8 @@ function renderMessage(messageData, targetContainer,onloadCallback){
         pic.parentNode.onclick = function(){return false;};
         pic.parentNode.href = messageData.thread+"/src/"+messageData.pic;
     } else onloadCallback();
-    if(messageData.messageDate)
-        newMessage.getElementsByClassName("messageDate")[0].innerHTML = messageData.messageDate;
+    if(messageData.date)
+        newMessage.getElementsByClassName("messageDate")[0].innerHTML = messageData.date;
     if(messageData.name !== undefined)
         newMessage.getElementsByClassName("messageName")[0].innerHTML = messageData.name;
     
@@ -79,6 +79,9 @@ function renderMessage(messageData, targetContainer,onloadCallback){
         text = text.replace(/%%(.*?)%%/g,"<span class='spoiler'>$1</span>");
         //[s]strike-through[/s]
         text = text.replace(/\[s\](.*?)\[\/s\]/g,"<s>$1</s>");
+        
+        //>quote
+        text = text.replace(/(^|<br>)(>[^>].*?)($|<br>)/g,"$1<span class='quote'>$2</span>$3");
 
         newMessage.getElementsByClassName("messageText")[0].innerHTML=text;
     }

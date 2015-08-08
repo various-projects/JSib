@@ -101,10 +101,10 @@ while(flock($metaFile,LOCK_EX) != 0){
 $metadata = json_decode(file_get_contents("$threadPath/info.json"));
 $postNum = ++$metadata['postCounter'];
 $messageData['postNum'] = $postNum;
-$datafileName = "$threadPath/posts".($postNum / $messageFilePageSize).".json";
+$datafileName = "$threadPath/posts".($postNum / $messageFilePartiotionSize).".json";
 
 $fileStart = microtime(true);
-$delimiter = (($postNum % $messageFilePageSize == 0)?'':',\r\n');//if first row in file — don't add delimiter at line start
+$delimiter = (($postNum % $messageFilePartiotionSize == 0)?'':',\r\n');//if first row in file — don't add delimiter at line start
 file_put_contents($datafileName, $delimiter.json_encode($messageData,JSON_UNESCAPED_UNICODE), FILE_APPEND);
 file_put_contents("$threadPath/lastPost.json", json_encode($messageData,JSON_UNESCAPED_UNICODE));
 

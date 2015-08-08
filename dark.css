@@ -63,3 +63,7 @@ div.message  .msg_ref:hover {
 ul.ulMenu li{
     color: black;
 }
+span.quote{
+    padding:2px;
+    color: palegreen;
+}
