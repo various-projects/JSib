@@ -19,7 +19,7 @@ require './settings.php';
 if(!file_exists($threadPath))
     die('Invalid thread: "'.$threadPath.'"');
 
-$messageData;
+$messageData = [];
 if( isset($_POST['text']) && (strlen($_POST['text'])>0) ){
     $messageData['text'] = str_replace("<", "&lt;", $_POST['text']);
     $messageData['text'] = str_replace("\r\n", "<br>", $messageData['text']);
@@ -89,15 +89,35 @@ if((isset($_FILES['file']))&&($_FILES['file']['error'] === UPLOAD_ERR_OK)){
 }
 
 
-$fileStart = microtime(true);
-file_put_contents("$threadPath/posts.json", ','.json_encode($messageData,JSON_UNESCAPED_UNICODE)."\r\n", FILE_APPEND);
-file_put_contents("$threadPath/lastPost.json", json_encode($messageData,JSON_UNESCAPED_UNICODE));
-if(!$isSaged)
-     touch("$threadPath");
+//Writing files ↓↓
 
-//renew board's thread list
+//updating thread ↓↓
+
+//locking thread by trying to lock the thread metafile until locking succeeds:
+$metaFile = fopen("$threadPath/info.json","c+");
+while(flock($metaFile,LOCK_EX) != 0){
+    sleep(0.001);//TODO: add a counter/timeot to avoid infinite loops
+}
+$metadata = json_decode(file_get_contents("$threadPath/info.json"));
+$postNum = ++$metadata['postCounter'];
+$messageData['postNum'] = $postNum;
+$datafileName = "$threadPath/posts".($postNum / $messageFilePageSize).".json";
+
+$fileStart = microtime(true);
+$delimiter = (($postNum % $messageFilePageSize == 0)?'':',\r\n');//if first row in file — don't add delimiter at line start
+file_put_contents($datafileName, $delimiter.json_encode($messageData,JSON_UNESCAPED_UNICODE), FILE_APPEND);
+file_put_contents("$threadPath/lastPost.json", json_encode($messageData,JSON_UNESCAPED_UNICODE));
+
+fwrite($metaFile, json_encode($metadata,JSON_UNESCAPED_UNICODE));
+flock($metaFile, LOCK_UN);//unlocking thread
+fclose($metaFile);
+
+if(!$isSaged) touch("$threadPath");
+//updating thread ↑↑
+
+//updating board ↓↓
 if(preg_match("/Windows/",php_uname("s")))
-    //Windows, works in 8.1, shoulda check other versions
+    //Windows, works in most versions
     $lsOutput = shell_exec("dir /b /o-d $boardId");// 'b' for 'bare' output, 'o' for order (sort) by 'd'ate '-' for reverse order (newest first)
 else
     //Linux, UNIX, MacOS X(?)
@@ -105,7 +125,7 @@ else
 
 preg_match_all("/\d+/",$lsOutput, $threadList);
 $threads = '['.implode(",",$threadList[0]).']';
-file_put_contents("$boardId/threads.json", $threads);
+file_put_contents("$boardId/threads.json", $threads);//TODO: check for locking?
 
 $fileWriteTime = (microtime(true) - $fileStart)*1000000;
 $totalExecutionTime = (microtime(true) - $scriptExecutionStart)*1000000;
