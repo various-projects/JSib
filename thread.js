@@ -3,6 +3,7 @@ var currentURI;
 var messageTemplate;
 var threads = [];
 var boards = [];
+var partitionSize = 20;//number of messages in partial data file
 function ge(id){
     return document.getElementById(id);
 }
@@ -99,6 +100,59 @@ function goOrigThread(evt){
     evt.stopPropagation();
     showThread(evt.currentTarget.dataset.threadId);
 }
+//Takes two params: ranges and callback.
+//Ranges contains lists of messages to fetch that are:
+//threads:  array of threads (IDs like /b/123) that should be loaded wholly, that is, all the messages contained in them
+//messages: array of separate messages (IDs) that should be loaded
+function loadMessages(ranges, callback){
+    var filesToLoad = [];
+    var threads = ranges.threads||[];
+    function getMeta(){
+        var thread = threads.pop();
+        if(thread){
+            var xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function(){
+               if(xhr.readyState === 4 && xhr.status === 200){//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
+                    threadMeta = JSON.parse(xhr.responseText);
+                    threadSize = threadMeta.counter*1;
+                    var partsTotal=Math.ceil((threadSize / partitionSize));
+                    var partName;
+                    var wasAdded = false
+                    for(var i=0;i<partsTotal;i++){
+                        partName = thread+"/posts_"+i+".json";
+                        if(!threads[thread].data[i*partitionSize]) filesToLoad.push(partName);
+                        wasAdded = (threads[thread].data[i*partitionSize]==undefined);
+                    }
+                    //if the last partial file was updated, but not created — add it too
+                    if((threads[thread].meta.counter < threadSize) && !wasAdded)
+                        filesToLoad.push({"url":partName,"thread":thread});
+                    getMeta();
+               }
+            };
+            xhr.open("GET",thread+"/info.json",true);
+            xhr.send();
+        }
+        else getData();
+    }
+    function getData(){
+        var file = filesToLoad.pop();
+        if(file){
+            var xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function(){
+               if(xhr.readyState === 4 && xhr.status === 200){
+                   
+               } 
+            }
+        }
+        else callback();
+    }
+    if(ranges.messages !== undefined){
+        var messages = ranges.messages;
+        for(message in messages){
+            
+        }
+    }
+}
 function showRef(evt){
     var params = currentURI.match(/^((\w+)\/(\d+))(\/\d+|)$/);
     if(!params){ //if URI's unparsable — get out.
@@ -190,7 +244,7 @@ function showThread(uri){
     var path = uri.match(/^(\w+\/\d+)/)[1];// board+thread, no message
     if(threads[path]){
         currentURI = uri;
-        renderThread(threads[path],uri);
+        renderThread(threads[path].data,uri);
     } else
         getThread(path,showThread,uri);
 }

@@ -106,7 +106,6 @@ $datafileName = "$threadPath/posts".($postNum / $messageFilePartiotionSize).".js
 $fileStart = microtime(true);
 $delimiter = (($postNum % $messageFilePartiotionSize == 0)?'':',\r\n');//if first row in file — don't add delimiter at line start
 file_put_contents($datafileName, $delimiter.json_encode($messageData,JSON_UNESCAPED_UNICODE), FILE_APPEND);
-file_put_contents("$threadPath/lastPost.json", json_encode($messageData,JSON_UNESCAPED_UNICODE));
 
 fwrite($metaFile, json_encode($metadata,JSON_UNESCAPED_UNICODE));
 flock($metaFile, LOCK_UN);//unlocking thread
