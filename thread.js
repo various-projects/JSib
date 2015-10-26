@@ -4,9 +4,47 @@ var messageTemplate;
 var threads = [];
 var boards = [];
 var partitionSize = 20;//number of messages in partial data file
-function ge(id){
-    return document.getElementById(id);
+
+function ajaxGet(url,callback){
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function(){
+           if(xhr.readyState === 4 && xhr.status === 200){//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
+                callback({url:url,data:JSON.parse(xhr.responseText)});
+           }
+        };
+        xhr.open(url,true);
+        xhr.send();
 }
+//single-line jQuery, lawl:
+function $(selector){
+    return document.querySelector(selector);
+}
+var ajaxPool = new function(){
+    var poolSize = 5;
+    var requestsActive = 0;
+    var queue = [];
+    function onsuccessFunctionMaker(callback){
+        return function(data){
+            callback(data);
+            requestsActive--;
+            checkQueue();
+        };
+    }
+    function checkQueue(){
+        while((requestsActive <= poolSize)&&(queue.length > 0)){
+            var req = queue.pop();
+            var url =  req.url;
+            var callback = req.callback;
+            requestsActive++;
+            ajaxGet(url,onsuccessFunctionMaker(callback));
+        }
+    }
+    this.addRequest = function(url,callback){
+        queue.push({'url':url,'callback':callback});
+        checkQueue();
+    };
+};
+
 function expandPic(evt){
     var pic = evt.currentTarget;
     var temp = pic.src;
@@ -19,11 +57,11 @@ function highlightMessage(messageId){
     var curMessageId = currentURI.match(/^\w+\/\d+(\/(\d+)|)$/)[2];
     messageId = messageId || curMessageId;
     if((messageId !== curMessageId)&&(curMessageId!== undefined)){
-        ge("content").children[curMessageId].classList.remove("selected");  
+        $("#content").children[curMessageId].classList.remove("selected");  
     }
     currentURI = currentURI.match(/^\w+\/\d+/)[0]+"/"+messageId;
     go(currentURI);
-    var selectedDiv = ge("content").children[messageId];
+    var selectedDiv = $("#content").children[messageId];
     selectedDiv.classList.add("selected");
     selectedDiv.scrollIntoView();
 }
@@ -105,12 +143,12 @@ function goOrigThread(evt){
 //threads:  array of threads (IDs like /b/123) that should be loaded wholly, that is, all the messages contained in them
 //messages: array of separate messages (IDs) that should be loaded
 function loadMessages(ranges, callback){
-    var filesToLoad = [];
+    var partsToLoad = [];
     var threads = ranges.threads||[];
     function getMeta(){
         var thread = threads.pop();
         if(thread){
-            var xhr = new XMLHttpRequest();
+            /*var xhr = new XMLHttpRequest();
             xhr.onreadystatechange = function(){
                if(xhr.readyState === 4 && xhr.status === 200){//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
                     threadMeta = JSON.parse(xhr.responseText);
@@ -120,29 +158,45 @@ function loadMessages(ranges, callback){
                     var wasAdded = false
                     for(var i=0;i<partsTotal;i++){
                         partName = thread+"/posts_"+i+".json";
-                        if(!threads[thread].data[i*partitionSize]) filesToLoad.push(partName);
+                        if(!threads[thread].data[i*partitionSize]) partsToLoad.push(partName);
                         wasAdded = (threads[thread].data[i*partitionSize]==undefined);
                     }
                     //if the last partial file was updated, but not created — add it too
                     if((threads[thread].meta.counter < threadSize) && !wasAdded)
-                        filesToLoad.push({"url":partName,"thread":thread});
+                        partsToLoad.push({"url":partName,"thread":thread});
                     getMeta();
                }
             };
             xhr.open("GET",thread+"/info.json",true);
-            xhr.send();
+            xhr.send();*/
+            ajaxPool.addRequest(thread+"/info.json",function(data){
+                var threadMeta = data.data;
+                var url = data.url;
+                var threadSize = threadMeta.counter*1;
+                var partsTotal=Math.ceil((threadSize / partitionSize));
+                var partName="";
+                var wasAdded = false;
+                for(var i=0;i<partsTotal;i++){
+                    partName = thread+"/posts_"+i+".json";
+                    if(!threads[thread].data[i*partitionSize]) partsToLoad.push(partName);
+                    wasAdded = (threads[thread].data[i*partitionSize]==undefined);
+                }
+                if(threads[thread] === undefined) threads[thread] = {meta:{counter:0},data:[]};
+                //if the last partial file was updated, but not created — add it too
+                if((threads[thread].meta.counter < threadSize) && !wasAdded)
+                    partsToLoad.push({"url":partName,"thread":thread});
+                threads[thread].meta.counter = threadSize;
+                getMeta();
+            });
         }
         else getData();
     }
     function getData(){
-        var file = filesToLoad.pop();
+        var file = partsToLoad.pop();
         if(file){
-            var xhr = new XMLHttpRequest();
-            xhr.onreadystatechange = function(){
-               if(xhr.readyState === 4 && xhr.status === 200){
-                   
-               } 
-            }
+            ajaxPool.addRequest(file,function(data){
+                
+            });
         }
         else callback();
     }
@@ -195,7 +249,7 @@ function showRef(evt){
 function sendMessage(evt){
     var threadId = currentURI.match(/\w+\/\d+/)[0];
     evt.preventDefault();
-    var form = ge("post-form");
+    var form = $("#post-form");
     var formData = new FormData(form);
     formData.append("threadId",currentURI.match(/\w+\/\d+/)[0]);
     var xhr = new XMLHttpRequest();
@@ -208,7 +262,7 @@ function sendMessage(evt){
                form.reset();
            }
            getThread(threadId,showThread,currentURI);
-           ge("postSendSubmit").blur();
+           $("#postSendSubmit").blur();
        }
     };
     xhr.open("POST","post.php",true);
@@ -219,7 +273,7 @@ function renderThread(threadData,uri){
     var params = uri.match(/^(\w+\/\d+)(\/(\d+)|)$/);
     var threadId = params[1];
     var selectedMessageId = params[3];
-    ge("content").innerHTML="";
+    $("#content").innerHTML="";
     var addedImagesCount=threadData.length;
     
     //executed when each added image gets loaded
@@ -232,7 +286,7 @@ function renderThread(threadData,uri){
         var messageData = threadData[i];
         messageData.messageNum = i;
         messageData.thread = threadId;
-        renderMessage(messageData,ge("content"),imgOnload);
+        renderMessage(messageData,$("#content"),imgOnload);
     }
     var OpMessage = threadData[0];
     document.title = defaultTitle + ((OpMessage.title!=="")?OpMessage.title:OpMessage.text.substring(0,50));
@@ -311,7 +365,7 @@ function setCSS(url){
 }
 function init(){
     defaultTitle = document.title+" ";
-    messageTemplate = ge("messageTemplate");
+    messageTemplate = $("#messageTemplate");
     ge('post-form').addEventListener("submit",sendMessage,false);
     if(window.localStorage)
         if(localStorage.ownCSS!==undefined)
@@ -320,7 +374,7 @@ function init(){
     go();
     
     if(!("onhashchange" in window))
-        ge("info").innerHTML += "Your browser doesn't support the <code><b><i>haschange</b></i></code> event. You <b>will</b> suffer."
+        $("#info").innerHTML += "Your browser doesn't support the <code><b><i>haschange</b></i></code> event. You <b>will</b> suffer."
     else
         window.addEventListener("hashchange", go, false);
 
