@@ -5,6 +5,12 @@ var threads = [];
 var boards = [];
 var partitionSize = 20;//number of messages in partial data file
 
+/**
+ * Performs an AJAX GET request
+ * @param {String} url URL to get data from
+ * @param {Object} callbackParam Parameter to pass to the callback function along with the request data
+ * @param {Function([url:,data:])} callback Callback to be called on success
+ */
 function ajaxGet(url, callbackParam, callback){
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function(){
@@ -14,8 +20,13 @@ function ajaxGet(url, callbackParam, callback){
         };
         xhr.open(url,true);
         xhr.send();
-}
-//single-line jQuery, lawl:
+};
+
+/**
+ * Single-line jQuery, lawl.
+ * @param {string} selector CSS selector
+ * @returns {Element} First DOM element matching the selector
+ */
 function $(selector){
     return document.querySelector(selector);
 }
@@ -25,7 +36,7 @@ var ajaxPool = new function(){
     var queue = [];
     
     /**
-     * Wraps callback function with pool-management code
+     * Wraps callback function with the pool-management code
      * @param {Function} callback Callback to wrap
      * @returns {Function} Wrapped callback to pass to Ajax object
      */
@@ -83,15 +94,15 @@ function highlightMessage(messageId){
  * Renders a message with given data into a DOM element and appends it to the given container
  * @param messageData Message data
  * @param {Number} messageData.messageNum In-thread message index
- * @param messageData.title {String} Message title, optional
- * @param messageData.email {String} Message email field, optional
- * @param messageData.pic {String} Picture file filename.
- * @param messageData.date {String} Message submit date-time
- * @param messageData.origThread {String} Original thread's id, used for 'alien' messages shown as cross-thread link previews.
+ * @param {String} messageData.title Message title, optional
+ * @param {String} messageData.email Message email field, optional
+ * @param {String} messageData.pic Picture file filename.
+ * @param {String} messageData.date Message submit date-time
+ * @param {String} messageData.origThread Original thread's id, used for 'alien' messages shown as cross-thread link previews.
  * @param {String} messageData.text Message text
- * @param {DOMElement} targetContainer Container DOM element to append rendered message to
+ * @param {Element} targetContainer Container DOM element to append rendered message to
  * @param {Function} onloadCallback Callback to execute after message image is loaded.
- * @returns {DOMElement} Rendered message DOM element
+ * @returns {Element} Rendered message DOM element
  */
 function renderMessage(messageData, targetContainer,onloadCallback){
     onloadCallback = onloadCallback || function(){};
@@ -166,10 +177,12 @@ function goOrigThread(evt){
     evt.stopPropagation();
     showThread(evt.currentTarget.dataset.threadId);
 }
-//Takes two params: ranges and callback.
-//Ranges contains lists of messages to fetch that are:
-//threads:  array of threads (IDs like /b/123) that should be loaded wholly, that is, all the messages contained in them
-//messages: array of separate messages (IDs) that should be loaded
+
+/**
+ * Batch loading messages from server
+ * @param {threads:Array(threadId), messages:Array(messageId)} ranges Can have 2 properties: 'threads' - array with IDs of threads and 'messages' - a similar array of specific messages to load from server
+ * @param {Function} callback Callback function to be executed when the all the job is done.
+ */
 function loadMessages(ranges, callback){
     var partsToLoad = [];
     var threads = ranges.threads||[];
