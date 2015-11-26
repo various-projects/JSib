@@ -5,7 +5,7 @@ var threads = [];
 var boards = [];
 var partitionSize = 20;//number of messages in partial data file
 
-function ajaxGet(url,callback){
+function ajaxGet(url, callbackParam, callback){
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function(){
            if(xhr.readyState === 4 && xhr.status === 200){//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
@@ -23,36 +23,50 @@ var ajaxPool = new function(){
     var poolSize = 5;
     var requestsActive = 0;
     var queue = [];
-    function onsuccessFunctionMaker(callback){
+    
+    /**
+     * Wraps callback function with pool-management code
+     * @param {Function} callback Callback to wrap
+     * @returns {Function} Wrapped callback to pass to Ajax object
+     */
+    function callbackWrap(callback){
         return function(data){
             callback(data);
             requestsActive--;
             checkQueue();
         };
     }
+    /**
+     * Checks if there is free capacity in pool and any jobs in queue to send.
+     * @returns {undefined}
+     */
     function checkQueue(){
         while((requestsActive <= poolSize)&&(queue.length > 0)){
             var req = queue.pop();
             var url =  req.url;
             var callback = req.callback;
+            var callbackParam = req.callbackParam;
             requestsActive++;
-            ajaxGet(url,onsuccessFunctionMaker(callback));
+            ajaxGet(url, callbackParam, callbackWrap(callback));
         }
     }
-    this.addRequest = function(url,callback){
-        queue.push({'url':url,'callback':callback});
+    this.addRequest = function(url, callbackParam, callback){
+        queue.push({'url':url,'callbackParam':callbackParam, 'callback':callback});
         checkQueue();
     };
 };
 
 function expandPic(evt){
-    var pic = evt.currentTarget;
-    var temp = pic.src;
-    pic.src = pic.dataset.altSrc;
-    pic.dataset.altSrc = temp;
+    var temp = this.src;
+    this.src = this.dataset.altSrc;
+    this.dataset.altSrc = temp;
     evt.stopPropagation();
     evt.preventDefault();
 }
+/**
+ * Highlights a message with a given Id: adds the 'selected' CSS class to it and scrolls it into view
+ * @param {type} messageId Id of the message to highlight. If provided parses the current one from currentURI
+ */
 function highlightMessage(messageId){
     var curMessageId = currentURI.match(/^\w+\/\d+(\/(\d+)|)$/)[2];
     messageId = messageId || curMessageId;
@@ -65,6 +79,20 @@ function highlightMessage(messageId){
     selectedDiv.classList.add("selected");
     selectedDiv.scrollIntoView();
 }
+/**
+ * Renders a message with given data into a DOM element and appends it to the given container
+ * @param messageData Message data
+ * @param {Number} messageData.messageNum In-thread message index
+ * @param messageData.title {String} Message title, optional
+ * @param messageData.email {String} Message email field, optional
+ * @param messageData.pic {String} Picture file filename.
+ * @param messageData.date {String} Message submit date-time
+ * @param messageData.origThread {String} Original thread's id, used for 'alien' messages shown as cross-thread link previews.
+ * @param {String} messageData.text Message text
+ * @param {DOMElement} targetContainer Container DOM element to append rendered message to
+ * @param {Function} onloadCallback Callback to execute after message image is loaded.
+ * @returns {DOMElement} Rendered message DOM element
+ */
 function renderMessage(messageData, targetContainer,onloadCallback){
     onloadCallback = onloadCallback || function(){};
     var newMessage = messageTemplate.cloneNode(true);
@@ -169,20 +197,21 @@ function loadMessages(ranges, callback){
             };
             xhr.open("GET",thread+"/info.json",true);
             xhr.send();*/
-            ajaxPool.addRequest(thread+"/info.json",function(data){
-                var threadMeta = data.data;
-                var url = data.url;
+            ajaxPool.addRequest(thread+"/info.json", thread, function(dataContainer){
+                var threadMeta = dataContainer.data;
+                var url = dataContainer.url;
                 var threadSize = threadMeta.counter*1;
-                var partsTotal=Math.ceil((threadSize / partitionSize));
-                var partName="";
+                var partsTotal = Math.ceil((threadSize / partitionSize));
+                var partName = "";
                 var wasAdded = false;
                 for(var i=0;i<partsTotal;i++){
                     partName = thread+"/posts_"+i+".json";
+                    // >> thread << ←shoulda be passed without closure!!
                     if(!threads[thread].data[i*partitionSize]) partsToLoad.push(partName);
                     wasAdded = (threads[thread].data[i*partitionSize]==undefined);
                 }
                 if(threads[thread] === undefined) threads[thread] = {meta:{counter:0},data:[]};
-                //if the last partial file was updated, but not created — add it too
+                //if the last partial file was updated, though not created — add it too
                 if((threads[thread].meta.counter < threadSize) && !wasAdded)
                     partsToLoad.push({"url":partName,"thread":thread});
                 threads[thread].meta.counter = threadSize;
@@ -374,7 +403,7 @@ function init(){
     go();
     
     if(!("onhashchange" in window))
-        $("#info").innerHTML += "Your browser doesn't support the <code><b><i>haschange</b></i></code> event. You <b>will</b> suffer."
+        $("#info").innerHTML += "Your browser doesn't support the <code><b><i>hashchange</b></i></code> event. You <b>will</b> suffer."
     else
         window.addEventListener("hashchange", go, false);
 
