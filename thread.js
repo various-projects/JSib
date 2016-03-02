@@ -93,7 +93,7 @@ var ajaxPool = new function(){
         };
     }
     /**
-     * Checks if there is free capacity in pool and any jobs in queue to send.
+     * Checks if there is free capacity in the pool and if there are any jobs in the queue to send.
      * @returns {undefined}
      */
     function checkQueue(){
@@ -117,6 +117,49 @@ var ajaxPool = new function(){
         queue.push({'url':url,'callbackParam':callbackParam, 'callback':callback});
         checkQueue();
     };
+
+    /**
+     * Creates a custom queue that has its own request counter and performs an action after finishing them all.
+     * @param {function} onComplete Callback function to call after completing all requests.
+     * @returns {addRequest}
+     */
+    this.createTask = function(onComplete){
+        var counter = 0;
+        var initFinished = false;
+        return {
+            /**
+            * Adds an HTTP GET request to the request queue. Same usage as ajaxPool's ajaxPool.addRequest.
+            * @param {URL} url URL to request
+            * @param {function} callback Callback function to call after receiving the reply
+            * @param {object} callbackParam Additional parameterr to pass to the callback function
+            * @returns {undefined}
+            */
+            addRequest: function(url, callback, callbackParam){
+                if(initFinished) throw "Trying to add requests to a finished task";
+                counter++;
+                queue.push({
+                    "url": url,
+                    "callbackParam": callbackParam,
+                    "callback": function(obj){
+                        callback(obj);
+                        counter--;
+                        if((counter < 1) && (initFinished))
+                            onComplete();
+                    }
+                });
+                checkQueue();
+            },
+            /**
+             * Finishes the task's as initialization (marks it ready for performing the onComplete action, no more requests will be added)
+             */
+            finish: function() {
+                initFinished = true;
+                if(counter < 1)
+                    onComplete();
+            }
+    };
+        
+    }
 };
 
 function expandPic(evt){
