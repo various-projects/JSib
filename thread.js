@@ -26,7 +26,7 @@ function init(){
 
 /**
  * Routing. Shows the data corresponding with the current URL hash or given other passed URI.
- * @param {String} uri {Optional] Address to go to, target object URI.
+ * @param {String} uri [Optional] Address to go to, target object URI.
  */
 function go(uri){
     if(typeof(uri) === "string"){ location.hash = uri; }
@@ -53,7 +53,7 @@ function go(uri){
  * Performs an AJAX GET request
  * @param {String} url URL to get data from
  * @param {Object} callbackParam Parameter to pass to the callback function along with the request data
- * @param {Function([url:,data:,param:callbackParam])} callback Callback to be called on success
+ * @param {Function([url: URL,data: Object,param:callbackParam])} callback Callback to be called on success
  */
 function ajaxGet(url, callback, callbackParam){
         var xhr = new XMLHttpRequest();
@@ -120,8 +120,11 @@ var ajaxPool = new function(){
 
     /**
      * Creates a custom queue that has its own request counter and performs an action after finishing them all.
+     * To use first create a task, then add your requests to it using addRequest() method, then finish it using finish().
+     * The onComplete action will be performed as soon as both conditions are met: (1) all the requests are completed and (2) the task is marked as finished.
+     * Use it in cases where you need to perform several requests before proceeding.
      * @param {function} onComplete Callback function to call after completing all requests.
-     * @returns {addRequest}
+     * @returns {addRequest:function(url, callback, callbackParam)}
      */
     this.createTask = function(onComplete){
         var counter = 0;
@@ -150,7 +153,7 @@ var ajaxPool = new function(){
                 checkQueue();
             },
             /**
-             * Finishes the task's as initialization (marks it ready for performing the onComplete action, no more requests will be added)
+             * Mark the task as finished (ready to perform the onComplete action, no more requests to be added)
              */
             finish: function() {
                 initFinished = true;
@@ -170,7 +173,7 @@ function expandPic(evt){
     evt.preventDefault();
 }
 /**
- * Highlights a message with a given Id: adds the 'selected' CSS class to it and scrolls it into view
+ * Highlights a message with the given Id: adds the 'selected' CSS class to it and scrolls it into view
  * @param {String} messageId Id of the message to highlight. If not provided parses the current one from currentURI
  */
 function highlightMessage(messageId){
@@ -491,9 +494,15 @@ function showBoard(boardId){
     
     ajaxGet(boardId+"/threads.json?"+Math.random(),function(obj){
         boards[boardId] = obj.data;
-        ajaxPool.addRequest( );
+        var board = obj.data;
+        var queque = ajaxPool.createTask(function(){
+            //AZAZA            
+        });
         var url = obj.url;
         var param = obj.param;
+        for(var i=0;i<board.length;i++){
+            queue.
+        }
         
     });
     var xhr = new XMLHttpRequest();
