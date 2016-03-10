@@ -160,8 +160,7 @@ var ajaxPool = new function(){
                 if(counter < 1)
                     onComplete();
             }
-    };
-        
+        };
     }
 };
 
