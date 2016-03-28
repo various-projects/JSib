@@ -25,6 +25,32 @@ function init(){
 }
 
 /**
+ * Enum for URI types.
+ * @readonly
+ * @enum {number}
+ */
+var uriType = {
+    invalid: -1,
+    board: 0,
+    thread: 1,
+    message: 2    
+}
+/**
+ * Parses URI string into 3 components — board, thread and message.
+ * @param {string} uri URI string formatted as "/boardName/threadNumber/messageNumber/"
+ * @returns {board:string,thread:string,message:string,type:uriType}
+ */
+function parseURI(uri){
+    var matches = uri.match(/^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)\/?$/);
+    var path = {board: matches[2],thread:matches[4],message:matches[6]};
+    path.uriType = uriType.invalid;
+    if(path.board !== undefined) path.uriType = uriType.board;
+    if(path.thread !== undefined) path.uriType = uriType.thread;
+    if(path.message !== undefined) path.uriType = uriType.message;
+    return JSON.parse(JSON.stringify(path));
+}
+
+/**
  * Routing. Shows the data corresponding with the current URL hash or given other passed URI.
  * @param {String} uri [Optional] Address to go to, target object URI.
  */
@@ -35,18 +61,15 @@ function go(uri){
     }//hash contains the address where we're going, 'currentURI' contains the address we've already reached in the process
     if(uri === currentURI) return;
     
-    var params = uri.match(/^((\w+)(\/\d+|))(\/\d+|)$/);//TODO: !!this regex is a piece of shit!!
-    if(!params){ //if URI's unparsable — get out.
+    var path = parseURI(uri);
+    if(path.uriType === uriType.invalid){ //if URI's unparsable — get out.
         alert("Invalid URI");
         return;
     }
-    var board = params[2];
-    var thread = params[3];
-    //var message = params[4];
-    if(thread===""){            // if no thread ID given
-        showBoard(board);       // show the board page
-    } else
-        showThread(uri);        //else show the trhead
+    if(path.uriType === uriType.board)
+        showBoard(path.board);
+    else
+        showThread(path);
 }
 
 /**
@@ -161,7 +184,7 @@ var ajaxPool = new function(){
                     onComplete();
             }
         };
-    }
+    };
 };
 
 function expandPic(evt){
@@ -484,6 +507,7 @@ function notImplemented(){
     console.log("Not-implemented logic in"+arguments.callee.caller.toString());
 }
 
+
 /**
  * Manually load a board index datafile.
  * @param {URI} boardId Board ID / URI to load
@@ -500,7 +524,7 @@ function showBoard(boardId){
         var url = obj.url;
         var param = obj.param;
         for(var i=0;i<board.length;i++){
-            queue.
+            //queue.
         }
         
     });
