@@ -42,6 +42,8 @@ var uriType = {
  */
 function parseURI(uri){
     var matches = uri.match(/^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)\/?$/);
+    if(matches == null)
+        return { uriType: uriType.invalid };
     var path = {board: matches[2],thread:matches[4],message:matches[6]};
     path.uriType = uriType.invalid;
     if(path.board !== undefined) path.uriType = uriType.board;
@@ -82,10 +84,11 @@ function ajaxGet(url, callback, callbackParam){
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function(){
            if(xhr.readyState === 4 && xhr.status === 200){//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
+               console.log(xhr.readyState + " ← state. Status: "+xhr.status);
                 callback({url:url,data:JSON.parse(xhr.responseText),param:callbackParam});
-           }
+           }            ТВОЮ ЖЕ МАТЬ! >___< у меня же тут ↑↑ НЕВАЛИДНЫЙ json!
         };
-        xhr.open(url,true);
+        xhr.open('GET',url,true);
         xhr.send();
 };
 
@@ -456,14 +459,16 @@ function renderThread(threadData,uri){
     if(selectedMessageId !== undefined) highlightMessage(selectedMessageId);
 }
 
-function renderBoard(threads){
+function renderBoard(threadList){
     contentDiv.innerHTML="";
-    for(var thread in threads){
-        var thread = threads[i]
+    for(var i=0;i<threadList.length;i++){
+        var thread = threads[threadList[i]];
+        var ln = thread.length;
+        var start = ((ln-3)<1)?1:(ln-3);
         var opPost = renderMessage(thread[0])
         opPost.className = "OP-post";
-        for(var i=1;i<thread.length;i++){
-            contentDiv.appendChild(opPost);
+        contentDiv.appendChild(opPost);
+        for(var i = start; i < ln; i++){
             contentDiv.appendChild(renderMessage(thread[i]));
         }
         contentDiv.appendChild(document.createElement("hr"));
@@ -517,29 +522,18 @@ function showBoard(boardId){
     
     ajaxGet(boardId+"/threads.json?"+Math.random(),function(obj){
         boards[boardId] = obj.data;
-        var board = obj.data;
-        var queque = ajaxPool.createTask(function(){
-            //AZAZA            
+        var board = obj.data;//array of thread IDs
+        var queue = ajaxPool.createTask(function(){
+            renderBoard(board);
         });
-        var url = obj.url;
-        var param = obj.param;
         for(var i=0;i<board.length;i++){
-            //queue.
+            queue.addRequest(boardId+"/"+board[i]+"/posts.json",function(ret){
+                threads[ret.param] = JSON.parse("["+ret.data+"]");
+            },boardId+"/"+board[i]);
         }
-        
-    });
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function(){
-        if(xhr.readyState === 4 && xhr.status === 200){
-            boards[boardId] = JSON.parse(xhr.responseText);
-            //callback(callbackParam);
-        }
-    };
-    xhr.open("GET", boardId+"/threads.json?"+Math.random(),true);
-    xhr.send();
-    
+        queue.finish();        
+    });    
 }
-
 
 /**
  * Inserts a reference to the message into the reply form.
