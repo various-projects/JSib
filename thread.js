@@ -69,7 +69,7 @@ function go(uri){
         return;
     }
     if(path.uriType === uriType.board)
-        showBoard(path.board);
+        loadBoard(path.board);
     else
         showThread(path);
 }
@@ -85,8 +85,18 @@ function ajaxGet(url, callback, callbackParam){
         xhr.onreadystatechange = function(){
            if(xhr.readyState === 4 && xhr.status === 200){//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
                console.log(xhr.readyState + " ← state. Status: "+xhr.status);
-                callback({url:url,data:JSON.parse(xhr.responseText),param:callbackParam});
-           }            ТВОЮ ЖЕ МАТЬ! >___< у меня же тут ↑↑ НЕВАЛИДНЫЙ json!
+               var data = xhr.responseText;
+               
+                if(data[0] == "[" && data.substr(-1)!=="]")
+                   data+="]";
+               
+               try{
+                   data = JSON.parse(data);
+               }catch(e){}
+               finally{
+                   callback({"url":url,"data":data,"param":callbackParam});
+               }               
+           }
         };
         xhr.open('GET',url,true);
         xhr.send();
@@ -150,9 +160,9 @@ var ajaxPool = new function(){
      * The onComplete action will be performed as soon as both conditions are met: (1) all the requests are completed and (2) the task is marked as finished.
      * Use it in cases where you need to perform several requests before proceeding.
      * @param {function} onComplete Callback function to call after completing all requests.
-     * @returns {addRequest:function(url, callback, callbackParam)}
+     * @returns {addRequest:function(url, callback, callbackParam),}
      */
-    this.createTask = function(onComplete){
+    this.createQueue = function(onComplete){
         var counter = 0;
         var initFinished = false;
         return {
@@ -164,7 +174,7 @@ var ajaxPool = new function(){
             * @returns {undefined}
             */
             addRequest: function(url, callback, callbackParam){
-                if(initFinished) throw "Trying to add requests to a finished task";
+                if(initFinished) throw "Trying to add a request to a finished queue";
                 counter++;
                 queue.push({
                     "url": url,
@@ -179,7 +189,7 @@ var ajaxPool = new function(){
                 checkQueue();
             },
             /**
-             * Mark the task as finished (ready to perform the onComplete action, no more requests to be added)
+             * Mark the queue initialization as finished (ready to perform the onComplete action, no more requests to be added)
              */
             finish: function() {
                 initFinished = true;
@@ -459,19 +469,22 @@ function renderThread(threadData,uri){
     if(selectedMessageId !== undefined) highlightMessage(selectedMessageId);
 }
 
-function renderBoard(threadList){
+function renderBoard(boardData){
     contentDiv.innerHTML="";
-    for(var i=0;i<threadList.length;i++){
-        var thread = threads[threadList[i]];
+    for(var threadN = 0; threadN < boardData.length; threadN++){
+        if(threadN > 0)
+            contentDiv.appendChild(document.createElement("hr"));
+        
+        var thread = threads[boardData.id + "/" + boardData[threadN]];
         var ln = thread.length;
         var start = ((ln-3)<1)?1:(ln-3);
         var opPost = renderMessage(thread[0])
         opPost.className = "OP-post";
         contentDiv.appendChild(opPost);
+        
         for(var i = start; i < ln; i++){
             contentDiv.appendChild(renderMessage(thread[i]));
         }
-        contentDiv.appendChild(document.createElement("hr"));
     }
 }
 
@@ -509,29 +522,29 @@ function getThread(threadId,callback,callbackParam){
 }
 
 function notImplemented(){
-    console.log("Not-implemented logic in"+arguments.callee.caller.toString());
+    console.log("Not implemented logic in "+arguments.callee.caller.toString());
 }
 
 
 /**
- * Manually load a board index datafile.
+ * Manually load a board index datafile and show the board.
  * @param {URI} boardId Board ID / URI to load
  */
-function showBoard(boardId){
-    if(boardId === currentURI) return;
-    
+function loadBoard(boardId){    
     ajaxGet(boardId+"/threads.json?"+Math.random(),function(obj){
-        boards[boardId] = obj.data;
         var board = obj.data;//array of thread IDs
-        var queue = ajaxPool.createTask(function(){
+        board.id = boardId;
+        boards[boardId] = board;
+        
+        var queue = ajaxPool.createQueue(function(){
             renderBoard(board);
         });
-        for(var i=0;i<board.length;i++){
-            queue.addRequest(boardId+"/"+board[i]+"/posts.json",function(ret){
-                threads[ret.param] = JSON.parse("["+ret.data+"]");
-            },boardId+"/"+board[i]);
+        for(var i = 0; i < board.length; i++){
+            queue.addRequest(boardId + "/" + board[i] + "/posts.json", function(ret){
+                threads[ret.param] = ret.data;
+            }, boardId + "/" + board[i]);
         }
-        queue.finish();        
+        queue.finish();
     });    
 }
 
