@@ -402,7 +402,7 @@ function showRef(evt){
     if(threads[threadId])
         attachRef(tgt,threadId,messageId);
     else
-        getThread(threadId,function(){
+        loadThread(threadId,function(){
             //threads[threadId]=threadData;
             threads[threadId][messageId].messageNum = messageId;
             threads[threadId][messageId].origThread = threadId;
@@ -437,7 +437,7 @@ function sendMessage(evt){
            else{
                form.reset();
            }
-           getThread(threadId,showThread,currentURI);
+           loadThread(threadId,showThread,currentURI);
            $("#postSendSubmit").blur();
        }
     };
@@ -481,6 +481,10 @@ function renderBoard(boardData){
         var opPost = renderMessage(thread[0])
         opPost.className = "OP-post";
         contentDiv.appendChild(opPost);
+        var spacer = document.createElement("div");
+        spacer.style = "margin:5px;font-size:20px";
+        spacer.innerHTML = "Some messages skipped (" + start +").";
+        contentDiv.appendChild(spacer);
         
         for(var i = start; i < ln; i++){
             contentDiv.appendChild(renderMessage(thread[i]));
@@ -498,7 +502,7 @@ function showThread(uri){
         currentURI = uri;
         renderThread(threads[path].data,uri);
     } else
-        getThread(path,showThread,uri);
+        loadThread(path, showThread, uri);
 }
 
 /**
@@ -507,7 +511,7 @@ function showThread(uri){
  * @param {Function} callback Callback function to pass the loaded data to.
  * @param {Object} callbackParam Additional data to pass to the callback function.
  */
-function getThread(threadId,callback,callbackParam){
+function loadThread(threadId, callback, callbackParam){
     if(callback === undefined)
         callback = showThread;
     var xhr = new XMLHttpRequest();
@@ -540,9 +544,16 @@ function loadBoard(boardId){
             renderBoard(board);
         });
         for(var i = 0; i < board.length; i++){
-            queue.addRequest(boardId + "/" + board[i] + "/posts.json", function(ret){
-                threads[ret.param] = ret.data;
-            }, boardId + "/" + board[i]);
+            var threadId = boardId + "/" + board[i];
+            queue.addRequest(threadId + "/posts.json", function(response){
+                var threadId = response.param;
+                var threadData = response.data;
+                threadData.forEach(function(dummy,index){
+                    threadData[index].thread = threadId;
+                    threadData[index].messageNum = index;
+                });
+                threads[response.param] = response.data;
+            }, threadId);
         }
         queue.finish();
     });    
