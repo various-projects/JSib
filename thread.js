@@ -3,7 +3,7 @@ var currentURI;
 var messageTemplate;
 var threads = [];
 var boards = [];
-var partitionSize = 20;//number of messages in partial data file
+var partitionSize = 20;//amount of messages in partial data file
 var contentDiv;
 
 function init(){
@@ -27,13 +27,13 @@ function init(){
 /**
  * Enum for URI types.
  * @readonly
- * @enum {number}
+ * @enum {string}
  */
 var uriType = {
-    invalid: -1,
-    board: 0,
-    thread: 1,
-    message: 2    
+    invalid: "invalid",
+    board: "board",
+    thread: "thread",
+    message: "message"    
 }
 /**
  * Parses URI string into 3 components — board, thread and message.
@@ -87,7 +87,7 @@ function ajaxGet(url, callback, callbackParam){
                console.log(xhr.readyState + " ← state. Status: "+xhr.status);
                var data = xhr.responseText;
                
-                if(data[0] == "[" && data.substr(-1)!=="]")
+                if(data[0] === "[" && data.substr(-1) !== "]")
                    data+="]";
                
                try{
@@ -111,6 +111,10 @@ function $(selector){
     return document.querySelector(selector);
 }
 
+/**
+ * 
+ * @type 
+ */
 var ajaxPool = new function(){
     var poolSize = 5;
     var requestsActive = 0;
@@ -484,6 +488,13 @@ function renderBoard(boardData){
         var spacer = document.createElement("div");
         spacer.style = "margin:5px;font-size:20px";
         spacer.innerHTML = "Some messages skipped (" + start +").";
+        var skippedImagesCount = 0;
+        for(var i = 1; i <  start; i++)
+            if(thread[i].pic !== undefined)
+                skippedImagesCount++;
+        
+        if(skippedImagesCount)
+            spacer.innerHTML += " Also some images ("+skippedImagesCount+").";
         contentDiv.appendChild(spacer);
         
         for(var i = start; i < ln; i++){
