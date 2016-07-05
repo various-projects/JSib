@@ -38,3 +38,7 @@ You may try out some of the functionality on the test stage [here](http://jsib.m
 As our data files never get changed and only appended, we can use 'Range' headers to get updates. Not even 'modified since' needed.
 
 As we are trying to avoid server-side data reads, that's why we don't have data-file paging now. Data-file paging would require us to use thread's metadata (at least, its message count) while appending message data and then to update it **before** the next message is appended. So it will break the atomicity of append operation.
+
+Don't use **string** templaters (like [doT.js](http://olado.github.io/doT/index.html)) for user input rendering or you will have to make it clean and safe by yourself. JS DOM content manipulation methods like `.innerHTML` and `.value`, on the other hand, do that that for you for free closing open tags and removing invalid markup.
+
+Though doT.js's idea of creating template-filling functions looks interesting (`var msgGen = templater(msgTemplate); var renderedMsg = msgGen(msgData);`).
