@@ -1,7 +1,16 @@
 # JSib
 Javascript (anonymous) imageboard engine. Well, mostly Javacript. Has a couple of PHP server-side functions ATM.
+Shoulda work extremly fast even on a poor man's LAMP shared-hostings. And even on static hostings in R-O mode (that is, should also work from Cloudflare/Google cache/local copy too).
 
-## Main idea
+## Main ideas
+
+1. Move as much logic as possible to the client side.
+2. Try to avoid data reading in server-side logic. Otherwise we'll need to implement some blocking and queueing mechanisms. And that doesn't work nice on plain FS access.
+3. Reduce overall codebase as much as possible. Less code => less bugs.
+4. Any data client had ever received should be reused.
+5. All the data-write operations should be atomic and as short as possible. Thus ready for asynchronous execution.
+6. Use HTTTP build-in features. There are a lot of them available for free.
+
 The idea behind this project comes from knowing the following facts:
 
 1. Most (99%) of the site load consists of client requests for server's data
@@ -23,3 +32,9 @@ Thread list (board) functionality does work too, so does the board index generat
 
 ## Test stage
 You may try out some of the functionality on the test stage [here](http://jsib.ml/jsib_v2/thread.html#b/1)
+
+## Features to consider in further development
+
+As our data files never get changed and only appended, we can use 'Range' headers to get updates. Not even 'modified since' needed.
+
+As we are trying to avoid server-side data reads, that's why we don't have data-file paging now. Data-file paging would require us to use thread's metadata (at least, its message count) while appending message data and then to update it **before** the next message is appended. So it will break the atomicity of append operation.
