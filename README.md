@@ -19,7 +19,7 @@ The idea behind this project comes from knowing the following facts:
 
 Hand created message threads do work:
  you may post into one and read the already poster messages, message formatting, image uploading, message references (including cross-thread ones) and other stuff do work.
-Thread list (board) functionality doesn't work — you can't create a thread or see a list of already existing ones.
+Thread list (board) functionality does work too, so does the board index generation code — though that is still up to be uploaded to the test site.
 
 ## Test stage
 You may try out some of the functionality on the test stage here: jsib.ml/jsib_v2/thread.html#b/1
