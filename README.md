@@ -22,4 +22,4 @@ Hand created message threads do work:
 Thread list (board) functionality does work too, so does the board index generation code — though that is still up to be uploaded to the test site.
 
 ## Test stage
-You may try out some of the functionality on the test stage here: jsib.ml/jsib_v2/thread.html#b/1
+You may try out some of the functionality on the test stage [here](http://jsib.ml/jsib_v2/thread.html#b/1)
