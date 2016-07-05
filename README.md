@@ -15,7 +15,7 @@ The idea behind this project comes from knowing the following facts:
 
 1. Most (99%) of the site load consists of client requests for server's data
 2. The data being requested gets changed only on some very specific actions like user posting that are much more rare and are easily separable from read requests.
-3. Most of server load in traditional web applications comes from processing client requests for data with serializing the needed data and wrapping it into html or other markup.
+3. Most of server load in traditional web applications comes from processing client requests for data with serializing the needed data and wrapping it into HTML, JSON or other markup.
 4. Serving static files produces next to zero load at all on a lightweight server compared to dynamic processing, so the reply data is mostly cached in files (those should cached in RAM by OS filesystem drivers).
 5. That's good, but caching replies that are validly formatted HTML or JSON forces you to invalidate the whole cache file for any change.
 6. Most of time server-side code of an imageboard does not do anything with database but pushing data in then getting the same data back out.
