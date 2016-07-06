@@ -1,15 +1,15 @@
 # JSib
 Javascript (anonymous) imageboard engine. Well, mostly Javacript. Has a couple of PHP server-side functions ATM.
-Shoulda work extremly fast even on a poor man's LAMP shared-hostings. And even on static hostings in R-O mode (that is, should also work from Cloudflare/Google cache/local copy too).
+Shoulda work extremly fast even on a poor man's LAMP shared-hosting. And even on static hostings in R-O mode (that is, should also work from Cloudflare/Google cache/local copy too).
 
 ## Main ideas
 
 1. Move as much logic as possible to the client side.
-2. Try to avoid data reading in server-side logic. Otherwise we'll need to implement some blocking and queueing mechanisms. And that doesn't work nice on plain FS access.
-3. Reduce overall codebase as much as possible. Less code => less bugs.
-4. Any data client had ever received should be reused.
-5. All the data-write operations should be atomic and as short as possible. Thus ready for asynchronous execution.
-6. Use HTTTP build-in features. There are a lot of them available for free.
+2. Reduce overall codebase as much as possible. Less code => less bugs.
+3. Use HTTTP build-in features. There is a lot of them available for free.
+4. Any data client have ever received should be reused.
+5. Try to avoid data reading in server logic. Otherwise we'll need to implement some blocking and queueing mechanisms. And that doesn't work nice on plain FS access.
+6. All the data-write operations should be atomic and as short as possible. Thus ready for asynchronous execution.
 
 The idea behind this project comes from knowing the following facts:
 
