@@ -93,23 +93,14 @@ if((isset($_FILES['file']))&&($_FILES['file']['error'] === UPLOAD_ERR_OK)){
 
 //updating thread ↓↓
 
-//locking thread by trying to lock the thread metafile until locking succeeds:
-$metaFile = fopen("$threadPath/info.json","c+");
-while(flock($metaFile,LOCK_EX) != 0){
-    sleep(0.001);//TODO: add a counter/timeot to avoid infinite loops
-}
-$metadata = json_decode(file_get_contents("$threadPath/info.json"));
-$postNum = ++$metadata['postCounter'];
-$messageData['postNum'] = $postNum;
-$datafileName = "$threadPath/posts".($postNum / $messageFilePartiotionSize).".json";
+$datafileName = "$threadPath/posts.json";
+$lastPostDataFileName = "$threadPath/lastPost.json";
 
 $fileStart = microtime(true);
-$delimiter = (($postNum % $messageFilePartiotionSize == 0)?'':',\r\n');//if first row in file — don't add delimiter at line start
-file_put_contents($datafileName, $delimiter.json_encode($messageData,JSON_UNESCAPED_UNICODE), FILE_APPEND);
-
-fwrite($metaFile, json_encode($metadata,JSON_UNESCAPED_UNICODE));
-flock($metaFile, LOCK_UN);//unlocking thread
-fclose($metaFile);
+$delimiter = ",\r\n";
+$serialized_message = json_encode($messageData,JSON_UNESCAPED_UNICODE);
+file_put_contents($datafileName, $delimiter.$serialized_message, FILE_APPEND);
+file_put_contents($lastPostDataFileName, $serialized_message);
 
 if(!$isSaged) touch("$threadPath");
 //updating thread ↑↑
