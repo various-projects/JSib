@@ -6,18 +6,18 @@ var boards = [];
 var partitionSize = 20;//amount of messages in partial data file
 var contentDiv;
 
-function init(){
+function init() {
     contentDiv = $("#content");
-    defaultTitle = document.title+" ";
+    defaultTitle = document.title + " ";
     messageTemplate = $("#messageTemplate");
-    $('#post-form').addEventListener("submit",sendMessage,false);
-    if(window.localStorage)
-        if(localStorage.ownCSS!==undefined)
+    $('#post-form').addEventListener("submit", sendMessage, false);
+    if (window.localStorage)
+        if (localStorage.ownCSS !== undefined)
             setCSS(localStorage.ownCSS);
 
     go();
-    
-    if(!("onhashchange" in window))
+
+    if (!("onhashchange" in window))
         $("#info").innerHTML += "Your browser doesn't support the <code><b><i>hashchange</b></i></code> event. You gonna <b>suffer</b>."
     else
         window.addEventListener("hashchange", go, false);
@@ -33,22 +33,22 @@ var uriType = {
     invalid: "invalid",
     board: "board",
     thread: "thread",
-    message: "message"    
+    message: "message"
 }
 /**
  * Parses URI string into 3 components — board, thread and message.
  * @param {string} uri URI string formatted as "/boardName/threadNumber/messageNumber/"
  * @returns {board:string,thread:string,message:string,type:uriType}
  */
-function parseURI(uri){
+function parseURI(uri) {
     var matches = uri.match(/^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)\/?$/);
-    if(matches == null)
+    if (matches == null)
         return { uriType: uriType.invalid };
-    var path = {board: matches[2],thread:matches[4],message:matches[6]};
+    var path = { board: matches[2], thread: matches[4], message: matches[6] };
     path.uriType = uriType.invalid;
-    if(path.board !== undefined) path.uriType = uriType.board;
-    if(path.thread !== undefined) path.uriType = uriType.thread;
-    if(path.message !== undefined) path.uriType = uriType.message;
+    if (path.board !== undefined) path.uriType = uriType.board;
+    if (path.thread !== undefined) path.uriType = uriType.thread;
+    if (path.message !== undefined) path.uriType = uriType.message;
     return JSON.parse(JSON.stringify(path));
 }
 
@@ -56,22 +56,22 @@ function parseURI(uri){
  * Routing. Shows the data corresponding with the current URL hash or given other passed URI.
  * @param {String} uri [Optional] Address to go to, target object URI.
  */
-function go(uri){
-    if(typeof(uri) === "string"){ location.hash = uri; }
+function go(uri) {
+    if (typeof (uri) === "string") { location.hash = uri; }
     else {
-        uri = location.hash.replace("#","");
+        uri = location.hash.replace("#", "");
     }//hash contains the address where we're going, 'currentURI' contains the address we've already reached in the process
-    if(uri === currentURI) return;
-    
+    if (uri === currentURI) return;
+
     var path = parseURI(uri);
-    if(path.uriType === uriType.invalid){ //if URI's unparsable — get out.
+    if (path.uriType === uriType.invalid) { //if URI's unparsable — get out.
         alert("Invalid URI");
         return;
     }
-    if(path.uriType === uriType.board)
+    if (path.uriType === uriType.board)
         loadBoard(path.board);
     else
-        showThread(path);
+        showThread(uri);
 }
 
 /**
@@ -80,26 +80,26 @@ function go(uri){
  * @param {Object} callbackParam Parameter to pass to the callback function along with the request data
  * @param {Function([url: URL,data: Object,param:callbackParam])} callback Callback to be called on success
  */
-function ajaxGet(url, callback, callbackParam){
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function(){
-           if(xhr.readyState === 4 && xhr.status === 200){//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
-               console.log(xhr.readyState + " ← state. Status: "+xhr.status);
-               var data = xhr.responseText;
-               
-                if(data[0] === "[" && data.substr(-1) !== "]")
-                   data+="]";
-               
-               try{
-                   data = JSON.parse(data);
-               }catch(e){}
-               finally{
-                   callback({"url":url,"data":data,"param":callbackParam});
-               }               
-           }
-        };
-        xhr.open('GET',url,true);
-        xhr.send();
+function ajaxGet(url, callback, callbackParam) {
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4 && xhr.status === 200) {//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
+            console.log(xhr.readyState + " ← state. Status: " + xhr.status);
+            var data = xhr.responseText;
+
+            if (data[0] === "[" && data.substr(-1) !== "]")
+                data += "]";
+
+            try {
+                data = JSON.parse(data);
+            } catch (e) { }
+            finally {
+                callback({ "url": url, "data": data, "param": callbackParam });
+            }
+        }
+    };
+    xhr.open('GET', url, true);
+    xhr.send();
 };
 
 /**
@@ -107,7 +107,7 @@ function ajaxGet(url, callback, callbackParam){
  * @param {string} selector CSS selector
  * @returns {Element} First DOM element matching the selector
  */
-function $(selector){
+function $(selector) {
     return document.querySelector(selector);
 }
 
@@ -115,18 +115,18 @@ function $(selector){
  * 
  * @type 
  */
-var ajaxPool = new function(){
+var ajaxPool = new function () {
     var poolSize = 5;
     var requestsActive = 0;
     var queue = [];
-    
+
     /**
      * Wraps callback function with the pool-management code
      * @param {Function} callback Callback to wrap
      * @returns {Function} Wrapped callback to pass to Ajax object
      */
-    function callbackWrap(callback){
-        return function(data){
+    function callbackWrap(callback) {
+        return function (data) {
             callback(data);
             requestsActive--;
             checkQueue();
@@ -136,10 +136,10 @@ var ajaxPool = new function(){
      * Checks if there is free capacity in the pool and if there are any jobs in the queue to send.
      * @returns {undefined}
      */
-    function checkQueue(){
-        while((requestsActive <= poolSize)&&(queue.length > 0)){
+    function checkQueue() {
+        while ((requestsActive <= poolSize) && (queue.length > 0)) {
             var req = queue.pop();
-            var url =  req.url;
+            var url = req.url;
             var callback = req.callback;
             var callbackParam = req.callbackParam;
             requestsActive++;
@@ -153,8 +153,8 @@ var ajaxPool = new function(){
      * @param {object} callbackParam Additional parameterr to pass to the callback function
      * @returns {undefined}
      */
-    this.addRequest = function(url, callback, callbackParam){
-        queue.push({'url':url,'callbackParam':callbackParam, 'callback':callback});
+    this.addRequest = function (url, callback, callbackParam) {
+        queue.push({ 'url': url, 'callbackParam': callbackParam, 'callback': callback });
         checkQueue();
     };
 
@@ -166,7 +166,7 @@ var ajaxPool = new function(){
      * @param {function} onComplete Callback function to call after completing all requests.
      * @returns {addRequest:function(url, callback, callbackParam),}
      */
-    this.createQueue = function(onComplete){
+    this.createQueue = function (onComplete) {
         var counter = 0;
         var initFinished = false;
         return {
@@ -177,16 +177,16 @@ var ajaxPool = new function(){
             * @param {object} callbackParam Additional parameterr to pass to the callback function
             * @returns {undefined}
             */
-            addRequest: function(url, callback, callbackParam){
-                if(initFinished) throw "Trying to add a request to a finished queue";
+            addRequest: function (url, callback, callbackParam) {
+                if (initFinished) throw "Trying to add a request to a finished queue";
                 counter++;
                 queue.push({
                     "url": url,
                     "callbackParam": callbackParam,
-                    "callback": function(obj){
+                    "callback": function (obj) {
                         callback(obj);
                         counter--;
-                        if((counter < 1) && (initFinished))
+                        if ((counter < 1) && (initFinished))
                             onComplete();
                     }
                 });
@@ -195,16 +195,16 @@ var ajaxPool = new function(){
             /**
              * Mark the queue initialization as finished (ready to perform the onComplete action, no more requests to be added)
              */
-            finish: function() {
+            finish: function () {
                 initFinished = true;
-                if(counter < 1)
+                if (counter < 1)
                     onComplete();
             }
         };
     };
 };
 
-function expandPic(evt){
+function expandPic(evt) {
     var temp = this.src;
     this.src = this.dataset.altSrc;
     this.dataset.altSrc = temp;
@@ -215,13 +215,13 @@ function expandPic(evt){
  * Highlights a message with the given Id: adds the 'selected' CSS class to it and scrolls it into view
  * @param {String} messageId Id of the message to highlight. If not provided parses the current one from currentURI
  */
-function highlightMessage(messageId){
+function highlightMessage(messageId) {
     var curMessageId = currentURI.match(/^\w+\/\d+(\/(\d+)|)$/)[2];
     messageId = messageId || curMessageId;
-    if((messageId !== curMessageId)&&(curMessageId!== undefined)){
-        contentDiv.children[curMessageId].classList.remove("selected");  
+    if ((messageId !== curMessageId) && (curMessageId !== undefined)) {
+        contentDiv.children[curMessageId].classList.remove("selected");
     }
-    currentURI = currentURI.match(/^\w+\/\d+/)[0]+"/"+messageId;
+    currentURI = currentURI.match(/^\w+\/\d+/)[0] + "/" + messageId;
     go(currentURI);
     var selectedDiv = contentDiv.children[messageId];
     selectedDiv.classList.add("selected");
@@ -241,75 +241,75 @@ function highlightMessage(messageId){
  * @param {Function} onloadCallback Callback to execute after message image is loaded.
  * @returns {Element} Rendered message DOM element
  */
-function renderMessage(messageData, onloadCallback){
-    onloadCallback = onloadCallback || function(){};
+function renderMessage(messageData, onloadCallback) {
+    onloadCallback = onloadCallback || function () { };
     var newMessage = messageTemplate.cloneNode(true);
     newMessage.removeAttribute("id");
-    
+
     newMessage.dataset.number = messageData.messageNum;
-    newMessage.addEventListener("click",function(){highlightMessage(this.dataset.number)},false);
-    
-    newMessage.getElementsByClassName("messageNumber")[0].innerHTML=messageData.messageNum;
-    if(messageData.title!==undefined)
-        newMessage.getElementsByClassName("messageTitle")[0].innerHTML=messageData.title;
-    if((messageData.email !== undefined)&&(messageData.email !== ""))
-        newMessage.getElementsByClassName("messageMail")[0].href="mailto:"+messageData.email;
-    if(messageData.pic !== undefined){
+    newMessage.addEventListener("click", function () { highlightMessage(this.dataset.number) }, false);
+
+    newMessage.getElementsByClassName("messageNumber")[0].innerHTML = messageData.messageNum;
+    if (messageData.title !== undefined)
+        newMessage.getElementsByClassName("messageTitle")[0].innerHTML = messageData.title;
+    if ((messageData.email !== undefined) && (messageData.email !== ""))
+        newMessage.getElementsByClassName("messageMail")[0].href = "mailto:" + messageData.email;
+    if (messageData.pic !== undefined) {
         var pic = newMessage.getElementsByTagName("img")[0];
         pic.onload = onloadCallback;
-        pic.src=messageData.thread+"/thumb/"+messageData.pic;
-        pic.dataset.altSrc = messageData.thread+"/src/"+messageData.pic;
-        pic.addEventListener("click",expandPic,false);
-        pic.parentNode.onclick = function(){return false;};
-        pic.parentNode.href = messageData.thread+"/src/"+messageData.pic;
+        pic.src = messageData.thread + "/thumb/" + messageData.pic;
+        pic.dataset.altSrc = messageData.thread + "/src/" + messageData.pic;
+        pic.addEventListener("click", expandPic, false);
+        pic.parentNode.onclick = function () { return false; };
+        pic.parentNode.href = messageData.thread + "/src/" + messageData.pic;
     } else onloadCallback();
-    if(messageData.date)
+    if (messageData.date)
         newMessage.getElementsByClassName("messageDate")[0].innerHTML = messageData.date;
-    if(messageData.name !== undefined)
+    if (messageData.name !== undefined)
         newMessage.getElementsByClassName("messageName")[0].innerHTML = messageData.name;
-    
-    if(messageData.origThread!==undefined){
-        newMessage.getElementsByClassName("origThread")[0].href="#"+messageData.origThread;
+
+    if (messageData.origThread !== undefined) {
+        newMessage.getElementsByClassName("origThread")[0].href = "#" + messageData.origThread;
         newMessage.getElementsByClassName("origThread")[0].dataset.threadId = messageData.origThread;
     }
-    
+
     //Reply text - markup and stuff:
-    if(messageData.text !== undefined){
+    if (messageData.text !== undefined) {
         var text = messageData.text;
         //URL links:
-        text = text.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>');
+        text = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
 
         //Message references:
         //like >>/b/123/123, >>123/123, >>123
-        text = text.replace(/>>((\w+\/|)(\d+\/|)\d+)/g,"<a data-ref='$1' href='#$1' class='msg_ref'>$&</a>");
+        text = text.replace(/>>((\w+\/|)(\d+\/|)\d+)/g, "<a data-ref='$1' href='#$1' class='msg_ref'>$&</a>");
 
         //Markup:
         //**bold**
-        text = text.replace(/\*\*(.*?)\*\*/g,"<b>$1</b>");
+        text = text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
         //*italic*
-        text = text.replace(/\*(.*?)\*/g,"<i>$1</i>");
+        text = text.replace(/\*(.*?)\*/g, "<i>$1</i>");
         //__underline__
-        text = text.replace(/__(.*?)__/g,"<u>$1</u>");
+        text = text.replace(/__(.*?)__/g, "<u>$1</u>");
         //%%spoiler%%
-        text = text.replace(/%%(.*?)%%/g,"<span class='spoiler'>$1</span>");
+        text = text.replace(/%%(.*?)%%/g, "<span class='spoiler'>$1</span>");
         //[s]strike-through[/s]
-        text = text.replace(/\[s\](.*?)\[\/s\]/g,"<s>$1</s>");
-        
-        //>quote
-        text = text.replace(/(^|<br>)(>[^>].*?)($|<br>)/g,"$1<span class='quote'>$2</span>$3");
+        text = text.replace(/\[s\](.*?)\[\/s\]/g, "<s>$1</s>");
 
-        newMessage.getElementsByClassName("messageText")[0].innerHTML=text;
+        //>quote
+        text = text.replace(/(^|<br>)(>[^>].*?)($|<br>)/g, "$1<span class='quote'>$2</span>$3");
+
+        newMessage.getElementsByClassName("messageText")[0].innerHTML = text;
     }
     var refs = newMessage.getElementsByClassName("msg_ref");
-    for(var i=0; i<refs.length;i++){
-        refs[i].addEventListener("click",showRef,false);
-        var href=refs[i].href.split("#")[1];
-        if(!href.match("/"))
-            refs[i].href="#"+currentURI+"/"+href;
+    for (var i = 0; i < refs.length; i++) {
+        refs[i].addEventListener("click", showRef, false);
+        var href = refs[i].href.split("#")[1];
+        if (!href.match("/"))
+            refs[i].href = "#" + currentURI + "/" + href;
     }
     return newMessage;
 }
-function goOrigThread(evt){
+function goOrigThread(evt) {
     evt.stopPropagation();
     showThread(evt.currentTarget.dataset.threadId);
 }
@@ -319,12 +319,12 @@ function goOrigThread(evt){
  * @param {threads:Array(threadId), messages:Array(messageId)} ranges Can have 2 properties: 'threads' - array with IDs of threads and 'messages' - a similar array of specific messages to load from server
  * @param {Function} callback Callback function to be executed when the all the job is done.
  */
-function loadMessages(ranges, callback){
+function loadMessages(ranges, callback) {
     var partsToLoad = [];
-    var threads = ranges.threads||[];
-    function getMeta(){
+    var threads = ranges.threads || [];
+    function getMeta() {
         var thread = threads.pop();
-        if(thread){
+        if (thread) {
             /*var xhr = new XMLHttpRequest();
             xhr.onreadystatechange = function(){
                if(xhr.readyState === 4 && xhr.status === 200){//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
@@ -346,24 +346,24 @@ function loadMessages(ranges, callback){
             };
             xhr.open("GET",thread+"/info.json",true);
             xhr.send();*/
-            (function(thread){//untying the 'thread' var
-                ajaxPool.addRequest(thread+"/info.json", thread, function(dataContainer){
+            (function (thread) {//untying the 'thread' var
+                ajaxPool.addRequest(thread + "/info.json", thread, function (dataContainer) {
                     var threadMeta = dataContainer.data;
                     //never used:
                     //var url = dataContainer.url;
-                    var threadSize = threadMeta.counter*1;
+                    var threadSize = threadMeta.counter * 1;
                     var partsTotal = Math.ceil(threadSize / partitionSize);
                     var partName = "";
                     var wasAdded = false;
-                    for(var i=0;i<partsTotal;i++){
-                        partName = thread+"/posts_"+i+".json";
-                        if(!threads[thread].data[i*partitionSize]) partsToLoad.push(partName);
-                        wasAdded = (threads[thread].data[i*partitionSize] === undefined);
+                    for (var i = 0; i < partsTotal; i++) {
+                        partName = thread + "/posts_" + i + ".json";
+                        if (!threads[thread].data[i * partitionSize]) partsToLoad.push(partName);
+                        wasAdded = (threads[thread].data[i * partitionSize] === undefined);
                     }
-                    if(threads[thread] === undefined) threads[thread] = {meta:{counter:0},data:[]};
+                    if (threads[thread] === undefined) threads[thread] = { meta: { counter: 0 }, data: [] };
                     //if the last partial file was updated, though not created — add it too
-                    if((threads[thread].meta.counter < threadSize) && !wasAdded)
-                        partsToLoad.push({"url":partName,"thread":thread});
+                    if ((threads[thread].meta.counter < threadSize) && !wasAdded)
+                        partsToLoad.push({ "url": partName, "thread": thread });
                     threads[thread].meta.counter = threadSize;
                     getMeta();
                 });
@@ -371,25 +371,25 @@ function loadMessages(ranges, callback){
         }
         else getData();
     }
-    function getData(){
+    function getData() {
         var file = partsToLoad.pop();
-        if(file){
-            ajaxPool.addRequest(file,function(data){
-                
+        if (file) {
+            ajaxPool.addRequest(file, function (data) {
+
             });
         }
         else callback();
     }
-    if(ranges.messages !== undefined){
+    if (ranges.messages !== undefined) {
         var messages = ranges.messages;
-        for(message in messages){
-            
+        for (message in messages) {
+
         }
     }
 }
-function showRef(evt){
+function showRef(evt) {
     var params = currentURI.match(/^((\w+)\/(\d+))(\/\d+|)$/);
-    if(!params){ //if URI's unparsable — get out.
+    if (!params) { //if URI's unparsable — get out.
         alert("Invalid URI");
         return;
     }
@@ -400,144 +400,154 @@ function showRef(evt){
     var tgt = evt.currentTarget;
     var ref = tgt.dataset.ref.split("/");
     var messageId = ref.pop();
-    var threadId = ref.pop()||thread;
-    var boardId = ref.pop()||board;
-    threadId = boardId +"/" + threadId;
-    if(threads[threadId])
-        attachRef(tgt,threadId,messageId);
+    var threadId = ref.pop() || thread;
+    var boardId = ref.pop() || board;
+    threadId = boardId + "/" + threadId;
+    if (threads[threadId])
+        attachRef(tgt, threadId, messageId);
     else
-        loadThread(threadId,function(){
+        loadThread(threadId, function () {
             //threads[threadId]=threadData;
-            threads[threadId][messageId].messageNum = messageId;
-            threads[threadId][messageId].origThread = threadId;
-            attachRef(tgt,threadId,messageId);
-            threads[threadId][messageId].origThread = "";
+            threads[threadId].data[messageId].messageNum = messageId;
+            threads[threadId].data[messageId].origThread = threadId;
+            attachRef(tgt, threadId, messageId);
+            threads[threadId].data[messageId].origThread = "";
         });
-        
-    
-    function attachRef(target, threadId, messageId){
-        if(target.dataset.refShown !== 'true'){
-            var message = threads[threadId][messageId];
+
+
+    function attachRef(target, threadId, messageId) {
+        if (target.dataset.refShown !== 'true') {
+            var message = threads[threadId].data[messageId];
             target.appendChild(renderMessage(message));
             target.dataset.refShown = 'true';
         } else {
             target.removeChild(tgt.children[0]);
             target.dataset.refShown = 'false';
-        }        
+        }
     }
 }
-function sendMessage(evt){
+function sendMessage(evt) {
     var threadId = currentURI.match(/\w+\/\d+/)[0];
     evt.preventDefault();
     var form = $("#post-form");
     var formData = new FormData(form);
-    formData.append("threadId",currentURI.match(/\w+\/\d+/)[0]);
+    formData.append("threadId", currentURI.match(/\w+\/\d+/)[0]);
     var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function(){
-        if(xhr.readyState === 4 && xhr.status === 200){
-           if(xhr.responseText.length>5){
-               alert(xhr.responseText);
-           }
-           else{
-               form.reset();
-           }
-           loadThread(threadId,showThread,currentURI);
-           $("#postSendSubmit").blur();
-       }
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            if (xhr.responseText.length > 5) {
+                alert(xhr.responseText);
+            }
+            else {
+                form.reset();
+            }
+            loadThread(threadId, function () { showThread(currentURI) });
+            $("#postSendSubmit").blur();
+        }
     };
-    xhr.open("POST","post.php",true);
+    xhr.open("POST", "post.php", true);
     xhr.send(formData);
 }
 
-function renderThread(threadData,uri){
+function renderThread(threadData, uri) {
     var params = uri.match(/^(\w+\/\d+)(\/(\d+)|)$/);
     var threadId = params[1];
     var selectedMessageId = params[3];
-    contentDiv.innerHTML="";
-    var addedImagesCount=threadData.length;
-    
+    contentDiv.innerHTML = "";
+    var addedImagesCount = threadData.length;
+
     //executed when each added image gets loaded
-    function imgOnload(){
+    function imgOnload() {
         addedImagesCount--;
-        if(addedImagesCount === 0) highlightMessage(selectedMessageId);
+
+        if (addedImagesCount === 0)
+            highlightMessage(selectedMessageId);
     }
-    
-    for(var i in threadData){
+
+    for (var i in threadData) {
         var messageData = threadData[i];
         messageData.messageNum = i;
         messageData.thread = threadId;
-        contentDiv.appendChild(renderMessage(messageData,imgOnload));
+        contentDiv.appendChild(renderMessage(messageData, imgOnload));
     }
     var OpMessage = threadData[0];
-    document.title = defaultTitle + ((OpMessage.title!=="")?OpMessage.title:OpMessage.text.substring(0,50));
-    if(selectedMessageId !== undefined) highlightMessage(selectedMessageId);
+    document.title = defaultTitle + ((OpMessage.title !== "") ? OpMessage.title : OpMessage.text.substring(0, 50));
+
+    if (selectedMessageId !== undefined)
+        highlightMessage(selectedMessageId);
 }
 
-function renderBoard(boardData){
-    contentDiv.innerHTML="";
-    for(var threadN = 0; threadN < boardData.length; threadN++){
-        if(threadN > 0)
-            contentDiv.appendChild(document.createElement("hr"));
-        
-        var thread = threads[boardData.id + "/" + boardData[threadN]];
-        var ln = thread.length;
-        var start = ((ln-3)<1)?1:(ln-3);
-        var opPost = renderMessage(thread[0])
-        opPost.className = "OP-post";
-        contentDiv.appendChild(opPost);
+/**
+ * Renders a board
+ * @param {string[])} boardData - array of thread IDs relative to board. That is, just numbers.
+ * @param {string} boardData.id - board's own id.
+ */
+function renderBoard(boardData) {
+    contentDiv.innerHTML = "";
+    var isFirst = true;
+    boardData.forEach(threadId => {
+        if (isFirst) isFirst = false;
+        else contentDiv.appendChild(document.createElement("hr"));
+
+        var thread = threads[boardData.id + "/" + boardData[threadId]];
+        var opPostRendered = renderMessage(thread[0]);
+        opPostRendered.className = "OP-post";
+        contentDiv.appendChild(opPostRendered);
+
+        var replies = thread.slice(1);
+        var skippedReplies = replies.slice(0, -3);
+
+        var skippedImagesCount = skippedReplies.filter(post => post.pic !== undefined).length;
+
         var spacer = document.createElement("div");
         spacer.style = "margin:5px;font-size:20px";
-        spacer.innerHTML = "Some messages skipped (" + start +").";
-        var skippedImagesCount = 0;
-        for(var i = 1; i <  start; i++)
-            if(thread[i].pic !== undefined)
-                skippedImagesCount++;
-        
-        if(skippedImagesCount)
-            spacer.innerHTML += " Also some images ("+skippedImagesCount+").";
+        if (skippedReplies.length)
+            spacer.innerHTML = "Some messages skipped (" + skippedReplies.length + ").";
+
+        if (skippedImagesCount)
+            spacer.innerHTML += " Also some images (" + skippedImagesCount + ").";
+
         contentDiv.appendChild(spacer);
-        
-        for(var i = start; i < ln; i++){
-            contentDiv.appendChild(renderMessage(thread[i]));
-        }
-    }
+
+        //last 3 (or less) replies
+        replies.slice(-3).forEach(function (reply) {
+            contentDiv.appendChild(renderMessage(reply));
+        });
+    })
 }
 
 /**
  * Shows a thread with the given ID
  * @param {String} uri Thread ID (aka URI)
  */
-function showThread(uri){
+function showThread(uri) {
     var path = uri.match(/^(\w+\/\d+)/)[1];// board+thread, no message
-    if(threads[path]){
+    if (threads[path]) {
         currentURI = uri;
-        renderThread(threads[path].data,uri);
+        renderThread(threads[path].data, uri);
     } else
-        loadThread(path, showThread, uri);
+        loadThread(path, function () { showThread(uri) });
 }
 
 /**
- * DEPRECATED Manually load a non-split (single-datafile) thread.
+ * Load chosen thread's data into the global repository (`threads`). Sounds lika damn bad practice. Shoulda refactor that to avoid hidden global object manipulations
  * @param {URI} threadId Thread ID (URI)
- * @param {Function} callback Callback function to pass the loaded data to.
- * @param {Object} callbackParam Additional data to pass to the callback function.
+ * @param {Function} onDone Callback function to pass the loaded data to.
  */
-function loadThread(threadId, callback, callbackParam){
-    if(callback === undefined)
-        callback = showThread;
+function loadThread(threadId, onDone) {
     var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function(){
-        if((xhr.readyState === 4) && (xhr.status === 200)){
-            threads[threadId] = {data:JSON.parse("["+xhr.responseText+"]")};
-            callback(callbackParam);
+    xhr.onreadystatechange = function () {
+        if ((xhr.readyState === 4) && (xhr.status === 200)) {
+            threads[threadId] = { data: JSON.parse(xhr.responseText + "]") };
+            onDone();
         }
     };
-    xhr.open("GET", threadId+"/posts.json?"+Math.random(),true);
+    xhr.open("GET", threadId + "/posts.json?" + Math.random(), true);
     xhr.send();
 }
 
-function notImplemented(){
-    console.log("Not implemented logic in "+arguments.callee.caller.toString());
+function notImplemented() {
+    console.log("Non-implemented logic in " + arguments.callee.caller.toString());
 }
 
 
@@ -545,21 +555,21 @@ function notImplemented(){
  * Manually load a board index datafile and show the board.
  * @param {URI} boardId Board ID / URI to load
  */
-function loadBoard(boardId){    
-    ajaxGet(boardId+"/threads.json?"+Math.random(),function(obj){
+function loadBoard(boardId) {
+    ajaxGet(boardId + "/threads.json?" + Math.random(), function (obj) {
         var board = obj.data;//array of thread IDs
         board.id = boardId;
         boards[boardId] = board;
-        
-        var queue = ajaxPool.createQueue(function(){
+
+        var queue = ajaxPool.createQueue(function () {
             renderBoard(board);
         });
-        for(var i = 0; i < board.length; i++){
+        for (var i = 0; i < board.length; i++) {
             var threadId = boardId + "/" + board[i];
-            queue.addRequest(threadId + "/posts.json", function(response){
+            queue.addRequest(threadId + "/posts.json", function (response) {
                 var threadId = response.param;
                 var threadData = response.data;
-                threadData.forEach(function(dummy,index){
+                threadData.forEach(function (dummy, index) {
                     threadData[index].thread = threadId;
                     threadData[index].messageNum = index;
                 });
@@ -567,7 +577,7 @@ function loadBoard(boardId){
             }, threadId);
         }
         queue.finish();
-    });    
+    });
 }
 
 /**
@@ -575,11 +585,11 @@ function loadBoard(boardId){
  * @param {type} event Event being handled.
  * @param {type} messageNum Message number to be inserted.
  */
-function addReplyRef(event,messageNum){
+function addReplyRef(event, messageNum) {
     event.preventDefault();
     event.stopPropagation();
     var textarea = document.querySelector("#post-form textarea");
-    textarea.value+=">>"+messageNum+"\n";
+    textarea.value += ">>" + messageNum + "\n";
     textarea.focus();
 }
 
@@ -587,9 +597,9 @@ function addReplyRef(event,messageNum){
  * Skin changing function. Sets the document's CSS link to point to the given URL and saves this setting to the Local Storage.
  * @param {URL} url URL of the custom CSS file.
  */
-function setCSS(url){
+function setCSS(url) {
     document.getElementsByTagName("link")[1].href = url;
     localStorage.ownCSS = url;
 }
 
-document.addEventListener("DOMContentLoaded",init,false);
+document.addEventListener("DOMContentLoaded", init, false);
