@@ -77,10 +77,9 @@ function go(uri) {
 /**
  * Performs an AJAX GET request
  * @param {String} url URL to get data from
- * @param {Object} callbackParam Parameter to pass to the callback function along with the request data
- * @param {Function([url: URL,data: Object,param:callbackParam])} callback Callback to be called on success
+ * @param {Function({url: URL,data: Object})} callback Callback to be called on success
  */
-function ajaxGet(url, callback, callbackParam) {
+function ajaxGet(url, callback) {
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function () {
         if (xhr.readyState === 4 && xhr.status === 200) {//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
@@ -94,7 +93,7 @@ function ajaxGet(url, callback, callbackParam) {
                 data = JSON.parse(data);
             } catch (e) { }
             finally {
-                callback({ "url": url, "data": data, "param": callbackParam });
+                callback({ "url": url, "data": data });
             }
         }
     };
@@ -112,8 +111,7 @@ function $(selector) {
 }
 
 /**
- * 
- * @type 
+ * An object (static class?) to perform multiple requests in an organized way
  */
 var ajaxPool = new function () {
     var poolSize = 5;
@@ -121,40 +119,30 @@ var ajaxPool = new function () {
     var queue = [];
 
     /**
-     * Wraps callback function with the pool-management code
-     * @param {Function} callback Callback to wrap
-     * @returns {Function} Wrapped callback to pass to Ajax object
-     */
-    function callbackWrap(callback) {
-        return function (data) {
-            callback(data);
-            requestsActive--;
-            checkQueue();
-        };
-    }
-    /**
      * Checks if there is free capacity in the pool and if there are any jobs in the queue to send.
      * @returns {undefined}
      */
     function checkQueue() {
         while ((requestsActive <= poolSize) && (queue.length > 0)) {
-            var req = queue.pop();
-            var url = req.url;
-            var callback = req.callback;
-            var callbackParam = req.callbackParam;
+            let req = queue.pop();
+            let url = req.url;
+            let callback = req.callback;
             requestsActive++;
-            ajaxGet(url, callbackWrap(callback), callbackParam);
+            ajaxGet(url, function (data) {
+                callback(data);
+                requestsActive--;
+                checkQueue();
+            });
         }
     }
     /**
      * Adds an HTTP GET request to the request queue
      * @param {URL} url URL to request
      * @param {function} callback Callback function to call after receiving the reply
-     * @param {object} callbackParam Additional parameterr to pass to the callback function
      * @returns {undefined}
      */
-    this.addRequest = function (url, callback, callbackParam) {
-        queue.push({ 'url': url, 'callbackParam': callbackParam, 'callback': callback });
+    this.addRequest = function (url, callback) {
+        queue.push({ 'url': url, 'callback': callback });
         checkQueue();
     };
 
@@ -164,7 +152,7 @@ var ajaxPool = new function () {
      * The onComplete action will be performed as soon as both conditions are met: (1) all the requests are completed and (2) the task is marked as finished.
      * Use it in cases where you need to perform several requests before proceeding.
      * @param {function} onComplete Callback function to call after completing all requests.
-     * @returns {addRequest:function(url, callback, callbackParam),}
+     * @returns {addRequest:function(url, callback),}
      */
     this.createQueue = function (onComplete) {
         var counter = 0;
@@ -174,15 +162,13 @@ var ajaxPool = new function () {
             * Adds an HTTP GET request to the request queue. Same usage as ajaxPool's ajaxPool.addRequest.
             * @param {URL} url URL to request
             * @param {function} callback Callback function to call after receiving the reply
-            * @param {object} callbackParam Additional parameterr to pass to the callback function
             * @returns {undefined}
             */
-            addRequest: function (url, callback, callbackParam) {
+            addRequest: function (url, callback) {
                 if (initFinished) throw "Trying to add a request to a finished queue";
                 counter++;
                 queue.push({
                     "url": url,
-                    "callbackParam": callbackParam,
                     "callback": function (obj) {
                         callback(obj);
                         counter--;
@@ -347,7 +333,7 @@ function loadMessages(ranges, callback) {
             xhr.open("GET",thread+"/info.json",true);
             xhr.send();*/
             (function (thread) {//untying the 'thread' var
-                ajaxPool.addRequest(thread + "/info.json", thread, function (dataContainer) {
+                ajaxPool.addRequest(thread + "/info.json", function (dataContainer) {
                     var threadMeta = dataContainer.data;
                     //never used:
                     //var url = dataContainer.url;
