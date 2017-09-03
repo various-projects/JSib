@@ -10,6 +10,7 @@ function init() {
     contentDiv = $("#content");
     defaultTitle = document.title + " ";
     messageTemplate = $("#messageTemplate");
+    messageTemplate.removeAttribute("id");
     $('#post-form').addEventListener("submit", sendMessage, false);
     if (window.localStorage)
         if (localStorage.ownCSS !== undefined)
@@ -190,13 +191,6 @@ var ajaxPool = new function () {
     };
 };
 
-function expandPic(evt) {
-    var temp = this.src;
-    this.src = this.dataset.altSrc;
-    this.dataset.altSrc = temp;
-    evt.stopPropagation();
-    evt.preventDefault();
-}
 /**
  * Highlights a message with the given Id: adds the 'selected' CSS class to it and scrolls it into view
  * @param {String} messageId Id of the message to highlight. If not provided parses the current one from currentURI
@@ -230,10 +224,8 @@ function highlightMessage(messageId) {
 function renderMessage(messageData, onloadCallback) {
     onloadCallback = onloadCallback || function () { };
     var newMessage = messageTemplate.cloneNode(true);
-    newMessage.removeAttribute("id");
-
-    newMessage.dataset.number = messageData.messageNum;
-    newMessage.addEventListener("click", function () { highlightMessage(this.dataset.number) }, false);
+    
+    newMessage.addEventListener("click", function () { highlightMessage(messageData.messageNum) }, false);
 
     newMessage.getElementsByClassName("messageNumber")[0].innerHTML = messageData.messageNum;
     if (messageData.title !== undefined)
@@ -245,7 +237,14 @@ function renderMessage(messageData, onloadCallback) {
         pic.onload = onloadCallback;
         pic.src = messageData.thread + "/thumb/" + messageData.pic;
         pic.dataset.altSrc = messageData.thread + "/src/" + messageData.pic;
-        pic.addEventListener("click", expandPic, false);
+        pic.addEventListener("click", function (event) {
+            event.stopPropagation();
+            event.preventDefault();
+
+            var temp = this.src;
+            this.src = this.dataset.altSrc;
+            this.dataset.altSrc = temp;
+        });
         pic.parentNode.onclick = function () { return false; };
         pic.parentNode.href = messageData.thread + "/src/" + messageData.pic;
     } else onloadCallback();
@@ -300,79 +299,6 @@ function goOrigThread(evt) {
     showThread(evt.currentTarget.dataset.threadId);
 }
 
-/**
- * Batch loading messages from server
- * @param {threads:Array(threadId), messages:Array(messageId)} ranges Can have 2 properties: 'threads' - array with IDs of threads and 'messages' - a similar array of specific messages to load from server
- * @param {Function} callback Callback function to be executed when the all the job is done.
- */
-function loadMessages(ranges, callback) {
-    var partsToLoad = [];
-    var threads = ranges.threads || [];
-    function getMeta() {
-        var thread = threads.pop();
-        if (thread) {
-            /*var xhr = new XMLHttpRequest();
-            xhr.onreadystatechange = function(){
-               if(xhr.readyState === 4 && xhr.status === 200){//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
-                    threadMeta = JSON.parse(xhr.responseText);
-                    threadSize = threadMeta.counter*1;
-                    var partsTotal=Math.ceil((threadSize / partitionSize));
-                    var partName;
-                    var wasAdded = false
-                    for(var i=0;i<partsTotal;i++){
-                        partName = thread+"/posts_"+i+".json";
-                        if(!threads[thread].data[i*partitionSize]) partsToLoad.push(partName);
-                        wasAdded = (threads[thread].data[i*partitionSize]==undefined);
-                    }
-                    //if the last partial file was updated, but not created — add it too
-                    if((threads[thread].meta.counter < threadSize) && !wasAdded)
-                        partsToLoad.push({"url":partName,"thread":thread});
-                    getMeta();
-               }
-            };
-            xhr.open("GET",thread+"/info.json",true);
-            xhr.send();*/
-            (function (thread) {//untying the 'thread' var
-                ajaxPool.addRequest(thread + "/info.json", function (dataContainer) {
-                    var threadMeta = dataContainer.data;
-                    //never used:
-                    //var url = dataContainer.url;
-                    var threadSize = threadMeta.counter * 1;
-                    var partsTotal = Math.ceil(threadSize / partitionSize);
-                    var partName = "";
-                    var wasAdded = false;
-                    for (var i = 0; i < partsTotal; i++) {
-                        partName = thread + "/posts_" + i + ".json";
-                        if (!threads[thread].data[i * partitionSize]) partsToLoad.push(partName);
-                        wasAdded = (threads[thread].data[i * partitionSize] === undefined);
-                    }
-                    if (threads[thread] === undefined) threads[thread] = { meta: { counter: 0 }, data: [] };
-                    //if the last partial file was updated, though not created — add it too
-                    if ((threads[thread].meta.counter < threadSize) && !wasAdded)
-                        partsToLoad.push({ "url": partName, "thread": thread });
-                    threads[thread].meta.counter = threadSize;
-                    getMeta();
-                });
-            })(thread)
-        }
-        else getData();
-    }
-    function getData() {
-        var file = partsToLoad.pop();
-        if (file) {
-            ajaxPool.addRequest(file, function (data) {
-
-            });
-        }
-        else callback();
-    }
-    if (ranges.messages !== undefined) {
-        var messages = ranges.messages;
-        for (message in messages) {
-
-        }
-    }
-}
 function showRef(evt) {
     var params = currentURI.match(/^((\w+)\/(\d+))(\/\d+|)$/);
     if (!params) { //if URI's unparsable — get out.
