@@ -31,7 +31,7 @@ const routing = new function () {
      * @readonly
      * @enum {string}
     */
-    const uriType = {
+    const pathType = {
         invalid: "invalid",
         board: "board",
         thread: "thread",
@@ -47,7 +47,7 @@ const routing = new function () {
      * Routing. Shows the data corresponding with the current URL hash or given other passed URI.
      * @param {String} uri [Optional] Address to go to, target object URI.
      */
-    this.go = function (uri) {
+    this.go = async function (uri) {
         if (typeof (uri) === "string") {
             location.hash = uri;
         } else {
@@ -60,27 +60,31 @@ const routing = new function () {
 
         var path = parseURIstring(uri);
 
-        if (path.uriType === uriType.invalid) { //if URI's unparsable — get out.
+        if (path.type === pathType.invalid) { //if URI's unparsable — get out.
             alert("Invalid URI");
             return;
         }
 
-        if (path.uriType === uriType.board)
+        if (path.type === pathType.board)
             loadBoard(path.board);
         else
-            showThread(uri);
+            await showThread(uri);
+        
+        if (path.type === pathType.message) {
+            highlightMessage(path.message);
+        }
     }
 
     /**
      * Parses URI string into 3 components — board, thread and message.
      * @param {string} uriString URI string formatted as "/boardName/threadNumber/messageNumber/"
-     * @returns {board:string,thread:string,message:string,type:uriType}
+     * @returns {{board:string, thread:string, message:string, type:uriType}}
      */
     function parseURIstring(uriString) {
         var matches = uriString.match(uriParseRegex);
 
         if (matches == null)
-            return { uriType: uriType.invalid };
+            return { type: pathType.invalid };
 
         let path = {
             board: matches[2],
@@ -88,13 +92,17 @@ const routing = new function () {
             message: matches[6]
         };
 
-        path.uriType = uriType.invalid;
+        path.type = pathType.invalid;
 
-        if (path.board !== undefined) path.uriType = uriType.board;
-
-        if (path.thread !== undefined) path.uriType = uriType.thread;
-
-        if (path.message !== undefined) path.uriType = uriType.message;
+        if (path.board !== undefined) {
+            path.type = pathType.board;
+        }
+        if (path.thread !== undefined) {
+            path.type = pathType.thread;
+        }
+        if (path.message !== undefined) {
+            path.type = pathType.message;
+        }
 
         return JSON.parse(JSON.stringify(path));//quickest way to remove `undefined` properties
     }
@@ -157,19 +165,13 @@ const ajaxPool = new function () {
 
 /**
  * Highlights a message with the given Id: adds the 'selected' CSS class to it and scrolls it into view
- * @param {String} messageId Id of the message to highlight. If not provided parses the current one from currentURI
+ * @param {String} messageId Id of the message to highlight.
  */
 function highlightMessage(messageId) {
-    var curMessageId = currentURI.match(/^\w+\/\d+(\/(\d+)|)$/)[2];
-    messageId = messageId || curMessageId;
-    if ((messageId !== curMessageId) && (curMessageId !== undefined)) {
-        contentDiv.children[curMessageId].classList.remove("selected");
-    }
-    currentURI = currentURI.match(/^\w+\/\d+/)[0] + "/" + messageId;
-    go(currentURI);
-    var selectedDiv = contentDiv.children[messageId];
-    selectedDiv.classList.add("selected");
-    selectedDiv.scrollIntoView();
+    contentDiv.getElementsByClassName(".selected")[0].classList.remove("selected");
+    var messageDiv = contentDiv.children[messageId];
+    messageDiv.classList.add("selected");
+    messageDiv.scrollIntoView();
 }
 
 /**
