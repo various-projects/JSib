@@ -452,28 +452,37 @@ function notImplemented() {
  * @param {String} url URL to send request to
  * @param {{name: string, value: string}} headers additional headers to set
  * @param {Object} data data to send
- * @return {Promise<string>} Retrieved data
+ * @return {Promise<{{repsonse: string, length: number}}>} Retrieved data and 'Content-Length' header value
  */
-function ajaxRequest(method, url, headers, data) {
-    return new Promise(function (resolve, reject) {
-        var xhr = new XMLHttpRequest();
+function ajaxRequest(method, url, skipBytes, data) {
+    return new Promise((resolve, reject) => {
+        let xhr = new XMLHttpRequest();
         xhr.open(method, url);
-        for (let header in headers) {
-            xhr.setRequestHeader(header, headers[header]);
+        if (skipBytes) {
+            xhr.setRequestHeader("Range", `bytes=${skipBytes}-`);
         }
-        xhr.onload = function () {
-            if (this.status >= 200 && this.status < 300) {
-                resolve(xhr.response);
+            
+        // for (let header in headers) {
+        //     xhr.setRequestHeader(header, headers[header]);
+        // }
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                let responseText = !skipBytes || xhr.status === 206 ? xhr.response : "";
+                if (!skipBytes || xhr.status === 206) {
+                    resolve({ response: xhr.response, length: xhr.getResponseHeader("Content-Length") });
+                } else {
+                    resolve({ response: "", length: 0 });
+                }
             } else {
                 reject({
-                    status: this.status,
+                    status: xhr.status,
                     statusText: xhr.statusText
                 });
             }
         };
-        xhr.onerror = function () {
+        xhr.onerror = () => {
             reject({
-                status: this.status,
+                status: xhr.status,
                 statusText: xhr.statusText
             });
         };
@@ -481,7 +490,7 @@ function ajaxRequest(method, url, headers, data) {
     });
 }
 
-ajaxRequest("GET", "/b");
+//ajaxRequest("GET", "/b");
 
 /**
  * Performs an AJAX GET request
@@ -513,11 +522,11 @@ function ajaxGet(url, callback) {
 const DataRepository = new function () {
     /**
      * @typedef {Object} MessageData
-     * @property {string} title Message title
-     * @property {string} email Author's email
-     * @property {string} pic Attached picture's filename (no path, just the file's name)
-     * @property {string} name Author's name
-     * @property {string} text Raw message text
+     * @property {string} [title] Message title
+     * @property {string} [email] Author's email
+     * @property {string} [pic] Attached picture's filename (no path, just the file's name)
+     * @property {string} [name] Author's name
+     * @property {string} [text] Raw message text
      * 
      * //(origThread?)
      */
@@ -531,28 +540,51 @@ const DataRepository = new function () {
 
     var boards = {};
 
-    const prefixes = {
+    const localStorageKeyPrefixes = {
         board: "board_",
         thread: "thread_"
     }
 
     const loadThread = async threadId => {
-        let size = threads[threadId] ? threads[threadId].dataSize : 0;
-        
+        let thread = threads[threadId] || {
+            dataSize: 0,
+            messages: []
+        };
+        let size = thread.dataSize;
+        let dataRequest = await ajaxRequest("GET", threadId, { "Range": `bytes=${size}-` });
+        let length = dataRequest.length;
+        if (length) {
+            thread.dataSize += length;
+            let rawData = dataRequest.response;
+            if (rawData[0] === ",") {
+                rawData[0] = "[";
+            }
+            let messages = JSON.parse(rawData += "]");
+            thread.messages = thread.messages.concat(messages);
+            updateLocalStorageRecord("thread", threadId, thread);
+        }        
+
+        return threads[threadId] = thread;
+    }
+
+    function updateLocalStorageRecord(type, id, data) {
+        let key = localStorageKeyPrefixes[type] + id;
+        localStorage.setItem(key, JSON.stringify(data));
     }
 
     this.init = () => {
         let localStorageData = Object.keys(localStorage).map(key => ({ key: key, value: localStorage.getItem(key) }));
 
-        let boardKeyMatch = new RegExp(`^${prefixes.board}(.*)$`);
+        let boardKeyMatch = new RegExp(`^${localStorageKeyPrefixes.board}(.*)$`);
         localStorageData.filter(item => item.key.test(boardKeyMatch))
             .forEach(item => boards[item.key.match(boardKeyMatch)[1]] = JSON.parse(item.value));
 
-        let threadKeyMatch = new RegExp(`^${prefixes.thread}(.*)$`);
+        let threadKeyMatch = new RegExp(`^${localStorageKeyPrefixes.thread}(.*)$`);
         localStorageData.filter(item => item.key.test(threadKeyMatch))
             .forEach(item => threads[item.key.match(threadKeyMatch)[1] = JSON.parse(item.value)]);
     }
-    this.getThread = threadId => threads[threadId] ? Promise.resolve(threads[threadId]) :;
+
+    this.getThread = threadId => threads[threadId] ? Promise.resolve(threads[threadId]) : await loadThread(threadId);
 }
 
 /**
