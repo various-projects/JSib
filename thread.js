@@ -44,7 +44,7 @@ const routing = new function () {
      * Routing. Shows the data corresponding with the current URL hash or given other passed URI.
      * @param {String} uri [Optional] Address to go to, target object URI.
      */
-    this.go = function(uri) {
+    this.go = function (uri) {
         if (typeof (uri) === "string") { location.hash = uri; }
         else {
             uri = location.hash.replace("#", "");
@@ -72,7 +72,7 @@ const routing = new function () {
 
         if (matches == null)
             return { uriType: uriType.invalid };
-        
+
         var path = { board: matches[2], thread: matches[4], message: matches[6] };
         path.uriType = uriType.invalid;
         if (path.board !== undefined) path.uriType = uriType.board;
@@ -81,33 +81,6 @@ const routing = new function () {
         return JSON.parse(JSON.stringify(path));
     }
 }
-
-/**
- * Performs an AJAX GET request
- * @param {String} url URL to get data from
- * @param {Function({url: URL,data: Object})} callback Callback to be called on success
- */
-function ajaxGet(url, callback) {
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
-            console.log(xhr.readyState + " ← state. Status: " + xhr.status);
-            var data = xhr.responseText;
-
-            if (data[0] === "[" && data.substr(-1) !== "]")
-                data += "]";
-
-            try {
-                data = JSON.parse(data);
-            } catch (e) { }
-            finally {
-                callback({ "url": url, "data": data });
-            }
-        }
-    };
-    xhr.open('GET', url, true);
-    xhr.send();
-};
 
 /**
  * Single-line jQuery, lawl.
@@ -472,17 +445,100 @@ function notImplemented() {
     console.log("Non-implemented logic in " + arguments.callee.caller.toString());
 }
 
+/** Performs async AJAX request
+ * 
+ * @async
+ * @param {String} method HTTP method ("GET", "POST" etc)
+ * @param {String} url URL to send request to
+ * @param {{name: string, value: string}} headers additional headers to set
+ * @param {Object} data data to send
+ * @return {Promise<string>} Retrieved data
+ */
+function ajaxRequest(method, url, headers, data) {
+    return new Promise(function (resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url);
+        for (let header in headers) {
+            xhr.setRequestHeader(header, headers[header]);
+        }
+        xhr.onload = function () {
+            if (this.status >= 200 && this.status < 300) {
+                resolve(xhr.response);
+            } else {
+                reject({
+                    status: this.status,
+                    statusText: xhr.statusText
+                });
+            }
+        };
+        xhr.onerror = function () {
+            reject({
+                status: this.status,
+                statusText: xhr.statusText
+            });
+        };
+        xhr.send(data);
+    });
+}
+
+ajaxRequest("GET", "/b");
+
+/**
+ * Performs an AJAX GET request
+ * @param {String} url URL to get data from
+ * @param {Function({url: URL,data: Object})} callback Callback to be called on success
+ */
+function ajaxGet(url, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4 && xhr.status === 200) {//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
+            console.log(xhr.readyState + " ? state. Status: " + xhr.status);
+            var data = xhr.responseText;
+
+            if (data[0] === "[" && data.substr(-1) !== "]")
+                data += "]";
+
+            try {
+                data = JSON.parse(data);
+            } catch (e) { }
+            finally {
+                callback({ "url": url, "data": data });
+            }
+        }
+    };
+    xhr.open('GET', url, true);
+    xhr.send();
+};
+
 const DataRepository = new function () {
-    var boards = {};
+    /**
+     * @typedef {Object} MessageData
+     * @property {string} title Message title
+     * @property {string} email Author's email
+     * @property {string} pic Attached picture's filename (no path, just the file's name)
+     * @property {string} name Author's name
+     * @property {string} text Raw message text
+     * 
+     * //(origThread?)
+     */
+
+    /** All the data related to a thread
+     * @typedef {Object} ThreadData
+     * @property {number} dataSize The size of the datafile retrieved for the thread on the last successful request.
+     * @property {MessageData[]} messages Posts of the thread
+     */
     var threads = {};
+
+    var boards = {};
 
     const prefixes = {
         board: "board_",
         thread: "thread_"
     }
 
-    const loadThread = threadId => {
-        return new Promise();
+    const loadThread = async threadId => {
+        let size = threads[threadId] ? threads[threadId].dataSize : 0;
+        
     }
 
     this.init = () => {
@@ -491,12 +547,12 @@ const DataRepository = new function () {
         let boardKeyMatch = new RegExp(`^${prefixes.board}(.*)$`);
         localStorageData.filter(item => item.key.test(boardKeyMatch))
             .forEach(item => boards[item.key.match(boardKeyMatch)[1]] = JSON.parse(item.value));
-        
+
         let threadKeyMatch = new RegExp(`^${prefixes.thread}(.*)$`);
         localStorageData.filter(item => item.key.test(threadKeyMatch))
             .forEach(item => threads[item.key.match(threadKeyMatch)[1] = JSON.parse(item.value)]);
     }
-    this.getThread = threadId => threads[threadId]?Promise.resolve(threads[threadId]):;
+    this.getThread = threadId => threads[threadId] ? Promise.resolve(threads[threadId]) :;
 }
 
 /**
