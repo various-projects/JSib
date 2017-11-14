@@ -38,24 +38,33 @@ const routing = new function () {
         message: "message"
     }
 
-    this.currentURI = {};
+    const uriParseRegex = /^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)\/?$/;
+
+    let currentPath = {};
+    let currentURI = "";
 
     /**
      * Routing. Shows the data corresponding with the current URL hash or given other passed URI.
      * @param {String} uri [Optional] Address to go to, target object URI.
      */
     this.go = function (uri) {
-        if (typeof (uri) === "string") { location.hash = uri; }
-        else {
+        if (typeof (uri) === "string") {
+            location.hash = uri;
+        } else {
             uri = location.hash.replace("#", "");
-        }//hash contains the address where we're going, 'currentURI' contains the address we've already reached in the process
-        if (uri === currentURI) return;
+        }
+
+        if (uri === currentURI) {
+            return;
+        }
 
         var path = parseURIstring(uri);
+
         if (path.uriType === uriType.invalid) { //if URI's unparsable — get out.
             alert("Invalid URI");
             return;
         }
+
         if (path.uriType === uriType.board)
             loadBoard(path.board);
         else
@@ -68,17 +77,26 @@ const routing = new function () {
      * @returns {board:string,thread:string,message:string,type:uriType}
      */
     function parseURIstring(uriString) {
-        var matches = uriString.match(/^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)\/?$/);
+        var matches = uriString.match(uriParseRegex);
 
         if (matches == null)
             return { uriType: uriType.invalid };
 
-        var path = { board: matches[2], thread: matches[4], message: matches[6] };
+        let path = {
+            board: matches[2],
+            thread: matches[4],
+            message: matches[6]
+        };
+
         path.uriType = uriType.invalid;
+
         if (path.board !== undefined) path.uriType = uriType.board;
+
         if (path.thread !== undefined) path.uriType = uriType.thread;
+
         if (path.message !== undefined) path.uriType = uriType.message;
-        return JSON.parse(JSON.stringify(path));
+
+        return JSON.parse(JSON.stringify(path));//quickest way to remove `undefined` properties
     }
 }
 
@@ -131,46 +149,9 @@ const ajaxPool = new function () {
     };
 
     /**
-     * Creates a custom queue that has its own request counter and performs an action after finishing them all.
-     * To use first create a task, then add your requests to it using addRequest() method, then finish it using finish().
-     * The onComplete action will be performed as soon as both conditions are met: (1) all the requests are completed and (2) the task is marked as finished.
-     * Use it in cases where you need to perform several requests before proceeding.
-     * @param {function} onComplete Callback function to call after completing all requests.
-     * @returns {addRequest:function(url, callback),}
+     * This turns out to be unneeded with the use of Promises.
      */
     this.createQueue = function (onComplete) {
-        var counter = 0;
-        var initFinished = false;
-        return {
-            /**
-            * Adds an HTTP GET request to the request queue. Same usage as ajaxPool's ajaxPool.addRequest.
-            * @param {URL} url URL to request
-            * @param {function} callback Callback function to call after receiving the reply
-            * @returns {undefined}
-            */
-            addRequest: function (url, callback) {
-                if (initFinished) throw "Trying to add a request to a finished queue";
-                counter++;
-                queue.push({
-                    "url": url,
-                    "callback": function (obj) {
-                        callback(obj);
-                        counter--;
-                        if ((counter < 1) && (initFinished))
-                            onComplete();
-                    }
-                });
-                checkQueue();
-            },
-            /**
-             * Mark the queue initialization as finished (ready to perform the onComplete action, no more requests to be added)
-             */
-            finish: function () {
-                initFinished = true;
-                if (counter < 1)
-                    onComplete();
-            }
-        };
     };
 };
 
@@ -344,7 +325,82 @@ function sendMessage(evt) {
     xhr.send(formData);
 }
 
-function renderThread(threadData, uri) {
+const DataRepository = new function () {
+    /**
+     * @typedef {Object} MessageData
+     * @property {string} [title] Message title
+     * @property {string} [email] Author's email
+     * @property {string} [pic] Attached picture's filename (no path, just the file's name)
+     * @property {string} [name] Author's name
+     * @property {string} [text] Raw message text
+     * 
+     * //(origThread?)
+     */
+
+    /** All the data related to a thread
+     * @typedef {Object} ThreadData
+     * @property {number} dataSize The size of the datafile retrieved for the thread on the last successful request.
+     * @property {MessageData[]} messages Posts of the thread
+     */
+    var threads = {};
+
+    var boards = {};
+
+    const localStorageKeyPrefixes = {
+        board: "board_",
+        thread: "thread_"
+    }
+
+    const loadThread = async threadId => {
+        let thread = threads[threadId] || {
+            dataSize: 0,
+            messages: []
+        };
+        let size = thread.dataSize;
+        let dataRequest = await ajaxRequest("GET", threadId, { "Range": `bytes=${size}-` });
+        let length = dataRequest.length;
+        if (length) {
+            thread.dataSize += length;
+            let rawData = dataRequest.response;
+            if (rawData[0] === ",") {
+                rawData[0] = "[";
+            }
+            let messages = JSON.parse(rawData += "]");
+            thread.messages = thread.messages.concat(messages);
+            updateLocalStorageRecord("thread", threadId, thread);
+        }        
+
+        return threads[threadId] = thread;
+    }
+
+    function updateLocalStorageRecord(type, id, data) {
+        let key = localStorageKeyPrefixes[type] + id;
+        localStorage.setItem(key, JSON.stringify(data));
+    }
+
+    this.init = () => {
+        let localStorageData = Object.keys(localStorage).map(key => ({ key: key, value: localStorage.getItem(key) }));
+
+        let boardKeyMatch = new RegExp(`^${localStorageKeyPrefixes.board}(.*)$`);
+        localStorageData.filter(item => item.key.test(boardKeyMatch))
+            .forEach(item => boards[item.key.match(boardKeyMatch)[1]] = JSON.parse(item.value));
+
+        let threadKeyMatch = new RegExp(`^${localStorageKeyPrefixes.thread}(.*)$`);
+        localStorageData.filter(item => item.key.test(threadKeyMatch))
+            .forEach(item => threads[item.key.match(threadKeyMatch)[1] = JSON.parse(item.value)]);
+    }
+
+    /** Get thread data (load if needed)
+     * @param {string} threadId Thread's id
+     */
+    this.getThread = threadId => threads[threadId] ? Promise.resolve(threads[threadId]) : await loadThread(threadId);
+}
+
+/** Render thread data into view
+ * @param {ThreadData} threadData Thread's data
+ * @param {string} id thread's id
+ */
+function renderThread(threadData, id) {
     var params = uri.match(/^(\w+\/\d+)(\/(\d+)|)$/);
     var threadId = params[1];
     var selectedMessageId = params[3];
@@ -415,13 +471,9 @@ function renderBoard(boardData) {
  * Shows a thread with the given ID
  * @param {String} uri Thread ID (aka URI)
  */
-function showThread(uri) {
-    var path = uri.match(/^(\w+\/\d+)/)[1];// board+thread, no message
-    if (threads[path]) {
-        currentURI = uri;
-        renderThread(threads[path].data, uri);
-    } else
-        loadThread(path, function () { showThread(uri) });
+async function showThread(id) {
+    let threadData = await DataRepository.getThread(id);
+    renderThread(threadData, id);
 }
 
 /**
@@ -445,30 +497,32 @@ function notImplemented() {
     console.log("Non-implemented logic in " + arguments.callee.caller.toString());
 }
 
+//@param {{name: string, value: string}} headers additional headers to set
+
 /** Performs async AJAX request
- * 
  * @async
  * @param {String} method HTTP method ("GET", "POST" etc)
  * @param {String} url URL to send request to
- * @param {{name: string, value: string}} headers additional headers to set
- * @param {Object} data data to send
+ * 
+ * @param {number[][]} [ranges] HTTP ranges
+ * @param {Object} [data] data to send
  * @return {Promise<{{repsonse: string, length: number}}>} Retrieved data and 'Content-Length' header value
  */
-function ajaxRequest(method, url, skipBytes, data) {
+function ajaxRequest(method, url, ranges, data) {
     return new Promise((resolve, reject) => {
         let xhr = new XMLHttpRequest();
         xhr.open(method, url);
-        if (skipBytes) {
-            xhr.setRequestHeader("Range", `bytes=${skipBytes}-`);
+
+        if (ranges) {
+            let headerValue = "bytes="
+                + ranges.map(range => `${range[0]}-${range[1] || ""}`)
+                    .join(", ");
+            xhr.setRequestHeader("Range", headerValue);
         }
-            
-        // for (let header in headers) {
-        //     xhr.setRequestHeader(header, headers[header]);
-        // }
+        
         xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
-                let responseText = !skipBytes || xhr.status === 206 ? xhr.response : "";
-                if (!skipBytes || xhr.status === 206) {
+                if (!ranges || xhr.status === 206) {
                     resolve({ response: xhr.response, length: xhr.getResponseHeader("Content-Length") });
                 } else {
                     resolve({ response: "", length: 0 });
@@ -480,6 +534,7 @@ function ajaxRequest(method, url, skipBytes, data) {
                 });
             }
         };
+
         xhr.onerror = () => {
             reject({
                 status: xhr.status,
@@ -490,102 +545,7 @@ function ajaxRequest(method, url, skipBytes, data) {
     });
 }
 
-//ajaxRequest("GET", "/b");
-
-/**
- * Performs an AJAX GET request
- * @param {String} url URL to get data from
- * @param {Function({url: URL,data: Object})} callback Callback to be called on success
- */
-function ajaxGet(url, callback) {
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {//unless we've set cache-control headers manually, we get 200 for 304 ('not modified') too.
-            console.log(xhr.readyState + " ? state. Status: " + xhr.status);
-            var data = xhr.responseText;
-
-            if (data[0] === "[" && data.substr(-1) !== "]")
-                data += "]";
-
-            try {
-                data = JSON.parse(data);
-            } catch (e) { }
-            finally {
-                callback({ "url": url, "data": data });
-            }
-        }
-    };
-    xhr.open('GET', url, true);
-    xhr.send();
-};
-
-const DataRepository = new function () {
-    /**
-     * @typedef {Object} MessageData
-     * @property {string} [title] Message title
-     * @property {string} [email] Author's email
-     * @property {string} [pic] Attached picture's filename (no path, just the file's name)
-     * @property {string} [name] Author's name
-     * @property {string} [text] Raw message text
-     * 
-     * //(origThread?)
-     */
-
-    /** All the data related to a thread
-     * @typedef {Object} ThreadData
-     * @property {number} dataSize The size of the datafile retrieved for the thread on the last successful request.
-     * @property {MessageData[]} messages Posts of the thread
-     */
-    var threads = {};
-
-    var boards = {};
-
-    const localStorageKeyPrefixes = {
-        board: "board_",
-        thread: "thread_"
-    }
-
-    const loadThread = async threadId => {
-        let thread = threads[threadId] || {
-            dataSize: 0,
-            messages: []
-        };
-        let size = thread.dataSize;
-        let dataRequest = await ajaxRequest("GET", threadId, { "Range": `bytes=${size}-` });
-        let length = dataRequest.length;
-        if (length) {
-            thread.dataSize += length;
-            let rawData = dataRequest.response;
-            if (rawData[0] === ",") {
-                rawData[0] = "[";
-            }
-            let messages = JSON.parse(rawData += "]");
-            thread.messages = thread.messages.concat(messages);
-            updateLocalStorageRecord("thread", threadId, thread);
-        }        
-
-        return threads[threadId] = thread;
-    }
-
-    function updateLocalStorageRecord(type, id, data) {
-        let key = localStorageKeyPrefixes[type] + id;
-        localStorage.setItem(key, JSON.stringify(data));
-    }
-
-    this.init = () => {
-        let localStorageData = Object.keys(localStorage).map(key => ({ key: key, value: localStorage.getItem(key) }));
-
-        let boardKeyMatch = new RegExp(`^${localStorageKeyPrefixes.board}(.*)$`);
-        localStorageData.filter(item => item.key.test(boardKeyMatch))
-            .forEach(item => boards[item.key.match(boardKeyMatch)[1]] = JSON.parse(item.value));
-
-        let threadKeyMatch = new RegExp(`^${localStorageKeyPrefixes.thread}(.*)$`);
-        localStorageData.filter(item => item.key.test(threadKeyMatch))
-            .forEach(item => threads[item.key.match(threadKeyMatch)[1] = JSON.parse(item.value)]);
-    }
-
-    this.getThread = threadId => threads[threadId] ? Promise.resolve(threads[threadId]) : await loadThread(threadId);
-}
+//ajaxRequest("GET", "/b",,);
 
 /**
  * Manually load a board index datafile and show the board.
