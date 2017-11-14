@@ -25,54 +25,61 @@ function init() {
 
 }
 
-/**
- * Enum for URI types.
- * @readonly
- * @enum {string}
- */
-var uriType = {
-    invalid: "invalid",
-    board: "board",
-    thread: "thread",
-    message: "message"
-}
-/**
- * Parses URI string into 3 components — board, thread and message.
- * @param {string} uri URI string formatted as "/boardName/threadNumber/messageNumber/"
- * @returns {board:string,thread:string,message:string,type:uriType}
- */
-function parseURI(uri) {
-    var matches = uri.match(/^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)\/?$/);
-    if (matches == null)
-        return { uriType: uriType.invalid };
-    var path = { board: matches[2], thread: matches[4], message: matches[6] };
-    path.uriType = uriType.invalid;
-    if (path.board !== undefined) path.uriType = uriType.board;
-    if (path.thread !== undefined) path.uriType = uriType.thread;
-    if (path.message !== undefined) path.uriType = uriType.message;
-    return JSON.parse(JSON.stringify(path));
-}
-
-/**
- * Routing. Shows the data corresponding with the current URL hash or given other passed URI.
- * @param {String} uri [Optional] Address to go to, target object URI.
- */
-function go(uri) {
-    if (typeof (uri) === "string") { location.hash = uri; }
-    else {
-        uri = location.hash.replace("#", "");
-    }//hash contains the address where we're going, 'currentURI' contains the address we've already reached in the process
-    if (uri === currentURI) return;
-
-    var path = parseURI(uri);
-    if (path.uriType === uriType.invalid) { //if URI's unparsable — get out.
-        alert("Invalid URI");
-        return;
+const routing = new function () {
+    /**
+     * Enum for URI types.
+     * @readonly
+     * @enum {string}
+    */
+    const uriType = {
+        invalid: "invalid",
+        board: "board",
+        thread: "thread",
+        message: "message"
     }
-    if (path.uriType === uriType.board)
-        loadBoard(path.board);
-    else
-        showThread(uri);
+
+    this.currentURI = {};
+
+    /**
+     * Routing. Shows the data corresponding with the current URL hash or given other passed URI.
+     * @param {String} uri [Optional] Address to go to, target object URI.
+     */
+    this.go = function(uri) {
+        if (typeof (uri) === "string") { location.hash = uri; }
+        else {
+            uri = location.hash.replace("#", "");
+        }//hash contains the address where we're going, 'currentURI' contains the address we've already reached in the process
+        if (uri === currentURI) return;
+
+        var path = parseURIstring(uri);
+        if (path.uriType === uriType.invalid) { //if URI's unparsable — get out.
+            alert("Invalid URI");
+            return;
+        }
+        if (path.uriType === uriType.board)
+            loadBoard(path.board);
+        else
+            showThread(uri);
+    }
+
+    /**
+     * Parses URI string into 3 components — board, thread and message.
+     * @param {string} uriString URI string formatted as "/boardName/threadNumber/messageNumber/"
+     * @returns {board:string,thread:string,message:string,type:uriType}
+     */
+    function parseURIstring(uriString) {
+        var matches = uriString.match(/^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)\/?$/);
+
+        if (matches == null)
+            return { uriType: uriType.invalid };
+        
+        var path = { board: matches[2], thread: matches[4], message: matches[6] };
+        path.uriType = uriType.invalid;
+        if (path.board !== undefined) path.uriType = uriType.board;
+        if (path.thread !== undefined) path.uriType = uriType.thread;
+        if (path.message !== undefined) path.uriType = uriType.message;
+        return JSON.parse(JSON.stringify(path));
+    }
 }
 
 /**
@@ -110,21 +117,24 @@ function ajaxGet(url, callback) {
 function $(selector) {
     return document.querySelector(selector);
 }
+function $$(selector) {
+    return document.querySelectorAll(selector);
+}
 
 /**
  * An object (static class?) to perform multiple requests in an organized way
  */
-var ajaxPool = new function () {
+const ajaxPool = new function () {
     var poolSize = 5;
     var requestsActive = 0;
     var queue = [];
 
     /**
-     * Checks if there is free capacity in the pool and if there are any jobs in the queue to send.
+     * Checks if there is free capacity in the pool and if there are any jobs in the queue to process.
      * @returns {undefined}
      */
     function checkQueue() {
-        while ((requestsActive <= poolSize) && (queue.length > 0)) {
+        while (requestsActive <= poolSize && queue.length) {
             let req = queue.pop();
             let url = req.url;
             let callback = req.callback;
@@ -224,7 +234,7 @@ function highlightMessage(messageId) {
 function renderMessage(messageData, onloadCallback) {
     onloadCallback = onloadCallback || function () { };
     var newMessage = messageTemplate.cloneNode(true);
-    
+
     newMessage.addEventListener("click", function () { highlightMessage(messageData.messageNum) }, false);
 
     newMessage.getElementsByClassName("messageNumber")[0].innerHTML = messageData.messageNum;
@@ -462,12 +472,38 @@ function notImplemented() {
     console.log("Non-implemented logic in " + arguments.callee.caller.toString());
 }
 
+const DataRepository = new function () {
+    var boards = {};
+    var threads = {};
+
+    const prefixes = {
+        board: "board_",
+        thread: "thread_"
+    }
+
+    const loadThread = threadId => {
+        return new Promise();
+    }
+
+    this.init = () => {
+        let localStorageData = Object.keys(localStorage).map(key => ({ key: key, value: localStorage.getItem(key) }));
+
+        let boardKeyMatch = new RegExp(`^${prefixes.board}(.*)$`);
+        localStorageData.filter(item => item.key.test(boardKeyMatch))
+            .forEach(item => boards[item.key.match(boardKeyMatch)[1]] = JSON.parse(item.value));
+        
+        let threadKeyMatch = new RegExp(`^${prefixes.thread}(.*)$`);
+        localStorageData.filter(item => item.key.test(threadKeyMatch))
+            .forEach(item => threads[item.key.match(threadKeyMatch)[1] = JSON.parse(item.value)]);
+    }
+    this.getThread = threadId => threads[threadId]?Promise.resolve(threads[threadId]):;
+}
 
 /**
  * Manually load a board index datafile and show the board.
  * @param {URI} boardId Board ID / URI to load
  */
-function loadBoard(boardId) {
+function loadBoard(boardId, ondone) {
     ajaxGet(boardId + "/threads.json?" + Math.random(), function (obj) {
         var board = obj.data;//array of thread IDs
         board.id = boardId;
