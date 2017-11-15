@@ -1,9 +1,5 @@
 var defaultTitle;
-var currentURI;
 var messageTemplate;
-var threads = [];
-var boards = [];
-var partitionSize = 20;//amount of messages in partial data file
 var contentDiv;
 
 function init() {
