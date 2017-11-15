@@ -16,16 +16,16 @@ function init() {
         if (localStorage.ownCSS !== undefined)
             setCSS(localStorage.ownCSS);
 
-    go();
+    Routing.go();
 
     if (!("onhashchange" in window))
         $("#info").innerHTML += "Your browser doesn't support the <code><b><i>hashchange</b></i></code> event. You gonna <b>suffer</b>."
     else
-        window.addEventListener("hashchange", go, false);
+        window.addEventListener("hashchange", Routing.go, false);
 
 }
 
-const routing = new function () {
+const Routing = new function () {
     /**
      * Enum for URI types.
      * @readonly
@@ -270,13 +270,13 @@ function renderMessage(messageData, messagePath) {
     return newMessage;
 }
 
-function showRef(evt) {
+async function showRef(evt) {
     evt.preventDefault();//in case it's an anchor
     evt.stopPropagation();//in case it's nested
 
     let target = evt.currentTarget;
     var ref = target.dataset.ref.split("/");
-    var messagePath = routing.getFullMessagePath({
+    var messagePath = Routing.getFullMessagePath({
         message: ref.pop(),
         thread: ref.pop(),
         board: ref.pop()
@@ -329,20 +329,20 @@ function sendMessage(evt) {
  */
 
 const DataRepository = new function () {
-
     /** All the data related to a thread
      * @typedef {Object} ThreadData
      * @property {number} dataSize The size of the datafile retrieved for the thread on the last successful request.
      * @property {MessageData[]} messages Posts of the thread
      */
-    var threads = {};
+    let threads = {};
 
-    var boards = {};
-
+    let boards = {};
+    
     const localStorageKeyPrefixes = {
         board: "board_",
         thread: "thread_"
-    }
+    };
+
     /** Loads the thread with the given ID
      * @param {string} threadId Thread id — a string in the form "{boardName}/{threadNumber}"
      * @returns {Promise<ThreadData>} Thread data
@@ -354,7 +354,7 @@ const DataRepository = new function () {
             messages: []
         };
         let size = thread.dataSize;
-        let dataRequest = await ajaxRequest("GET", threadId, { "Range": `bytes=${size}-` });
+        let dataRequest = await ajaxRequest("GET", threadId, [[size]]);
         let length = dataRequest.length;
         if (length) {
             thread.dataSize += length;
@@ -389,8 +389,9 @@ const DataRepository = new function () {
 
     /** Get thread data (load if needed)
      * @param {string} threadId Thread's id
+     * @return {ThreadData} Thread data
      */
-    this.getThread = threadId => threads[threadId] ? Promise.resolve(threads[threadId]) : await loadThread(threadId);
+    this.getThread = async threadId => threads[threadId] ? Promise.resolve(threads[threadId]) : await loadThread(threadId);
 }
 
 /** Render thread data into view
@@ -400,7 +401,7 @@ const DataRepository = new function () {
 function renderThread(threadData, id) {
     contentDiv.innerHTML = "";
     threadData.messages.forEach((messageData, index) => {
-        let messagePath = routing.getFullMessagePath({ message: index });
+        let messagePath = Routing.getFullMessagePath({ message: index });
         contentDiv.appendChild(renderMessage(messageData, messagePath));
     });
 
