@@ -44,8 +44,8 @@ const routing = new function () {
     let currentURI = "";
 
     /**
-     * Routing. Shows the data corresponding with the current URL hash or given other passed URI.
-     * @param {String} uri [Optional] Address to go to, target object URI.
+     * Routing. Shows the view corresponding with the current URL hash or given other passed URI.
+     * @param {String} [uri] Address to go to, target object URI.
      */
     this.go = async function (uri) {
         if (typeof (uri) === "string") {
@@ -404,7 +404,7 @@ function renderThread(threadData, id) {
         contentDiv.appendChild(renderMessage(messageData, messagePath));
     });
 
-    var OpMessage = threadData[0];
+    let OpMessage = threadData[0];
     document.title = defaultTitle + (OpMessage.title ? OpMessage.title : OpMessage.text.substring(0, 50));
 }
 
