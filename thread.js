@@ -57,8 +57,9 @@ const routing = new function () {
         if (uri === currentURI) {
             return;
         }
+        currentURI = uri;
 
-        var path = parseURIstring(uri);
+        let path = parseURIstring(uri);
 
         if (path.type === pathType.invalid) { //if URI's unparsable — get out.
             alert("Invalid URI");
@@ -67,13 +68,25 @@ const routing = new function () {
 
         if (path.type === pathType.board)
             loadBoard(path.board);
-        else
-            await showThread(uri);
-        
+        else if (path.thread !== currentPath.thread)
+            await showThread(path.board, path.thread);
+
         if (path.type === pathType.message) {
             highlightMessage(path.message);
         }
+
+        currentPath = path;
     }
+
+    /** Completes an incomplete (relative) path by filling missing values with the ones from current path
+     * @param {{board:string, thread:string, message:string}} incompletePath incomplete path to complete
+     * @returns {{board:string, thread:string, message:string}} Complete (absolute) path to the message
+    */
+    this.getFullMessagePath = incompletePath => ({
+        message: incompletePath.message,
+        thread: incompletePath.thread || currentPath.thread,
+        board: incompletePath.board || currentPath.board
+    })
 
     /**
      * Parses URI string into 3 components — board, thread and message.
@@ -81,7 +94,7 @@ const routing = new function () {
      * @returns {{board:string, thread:string, message:string, type:uriType}}
      */
     function parseURIstring(uriString) {
-        var matches = uriString.match(uriParseRegex);
+        let matches = uriString.match(uriParseRegex);
 
         if (matches == null)
             return { type: pathType.invalid };
@@ -175,32 +188,31 @@ function highlightMessage(messageId) {
 }
 
 /**
- * Renders a message with given data into a DOM element and appends it to the given container
+ * TODO: UPDATE PARAMS DESCRIPTION Renders a message with the given data into a DOM element and appends it to the given container
  * @param messageData Message data
  * @param {Number} messageData.messageNum In-thread message index
  * @param {String} messageData.title Message title, optional
  * @param {String} messageData.email Message email field, optional
  * @param {String} messageData.pic Picture file filename.
  * @param {String} messageData.date Message submit date-time
- * @param {String} messageData.origThread Original thread's id, used for 'alien' messages shown as cross-thread link previews.
  * @param {String} messageData.text Message text
- * @param {Function} onloadCallback Callback to execute after message image is loaded.
  * @returns {Element} Rendered message DOM element
  */
-function renderMessage(messageData, onloadCallback) {
-    onloadCallback = onloadCallback || function () { };
+function renderMessage(messageData, messagePath) {
     var newMessage = messageTemplate.cloneNode(true);
 
-    newMessage.addEventListener("click", function () { highlightMessage(messageData.messageNum) }, false);
+    newMessage.addEventListener("click", function () { highlightMessage(messagePath.message) }, false);
 
-    newMessage.getElementsByClassName("messageNumber")[0].innerHTML = messageData.messageNum;
-    if (messageData.title !== undefined)
+    newMessage.getElementsByClassName("messageNumber")[0].innerHTML = messagePath.message;
+
+    if (messageData.title)
         newMessage.getElementsByClassName("messageTitle")[0].innerHTML = messageData.title;
-    if ((messageData.email !== undefined) && (messageData.email !== ""))
+    
+    if (messageData.email)
         newMessage.getElementsByClassName("messageMail")[0].href = "mailto:" + messageData.email;
-    if (messageData.pic !== undefined) {
+    
+    if (messageData.pic) {
         var pic = newMessage.getElementsByTagName("img")[0];
-        pic.onload = onloadCallback;
         pic.src = messageData.thread + "/thumb/" + messageData.pic;
         pic.dataset.altSrc = messageData.thread + "/src/" + messageData.pic;
         pic.addEventListener("click", function (event) {
@@ -213,18 +225,15 @@ function renderMessage(messageData, onloadCallback) {
         });
         pic.parentNode.onclick = function () { return false; };
         pic.parentNode.href = messageData.thread + "/src/" + messageData.pic;
-    } else onloadCallback();
+    }
     if (messageData.date)
         newMessage.getElementsByClassName("messageDate")[0].innerHTML = messageData.date;
     if (messageData.name !== undefined)
         newMessage.getElementsByClassName("messageName")[0].innerHTML = messageData.name;
 
-    if (messageData.origThread !== undefined) {
-        newMessage.getElementsByClassName("origThread")[0].href = "#" + messageData.origThread;
-        newMessage.getElementsByClassName("origThread")[0].dataset.threadId = messageData.origThread;
-    }
+    newMessage.getElementsByClassName("origThread")[0].href = `#${messagePath.board}/${messagePath.thread}/${messagePath.message}`;
 
-    //Reply text - markup and stuff:
+    //Message text - markup and stuff:
     if (messageData.text !== undefined) {
         var text = messageData.text;
         //URL links:
@@ -260,49 +269,31 @@ function renderMessage(messageData, onloadCallback) {
     }
     return newMessage;
 }
-function goOrigThread(evt) {
-    evt.stopPropagation();
-    showThread(evt.currentTarget.dataset.threadId);
-}
 
 function showRef(evt) {
-    var params = currentURI.match(/^((\w+)\/(\d+))(\/\d+|)$/);
-    if (!params) { //if URI's unparsable — get out.
-        alert("Invalid URI");
-        return;
-    }
-    var board = params[2];
-    var thread = params[3];
     evt.preventDefault();//in case it's an anchor
     evt.stopPropagation();//in case it's nested
-    var tgt = evt.currentTarget;
-    var ref = tgt.dataset.ref.split("/");
-    var messageId = ref.pop();
-    var threadId = ref.pop() || thread;
-    var boardId = ref.pop() || board;
-    threadId = boardId + "/" + threadId;
-    if (threads[threadId])
-        attachRef(tgt, threadId, messageId);
-    else
-        loadThread(threadId, function () {
-            //threads[threadId]=threadData;
-            threads[threadId].data[messageId].messageNum = messageId;
-            threads[threadId].data[messageId].origThread = threadId;
-            attachRef(tgt, threadId, messageId);
-            threads[threadId].data[messageId].origThread = "";
-        });
 
-
-    function attachRef(target, threadId, messageId) {
-        if (target.dataset.refShown !== 'true') {
-            var message = threads[threadId].data[messageId];
-            target.appendChild(renderMessage(message));
-            target.dataset.refShown = 'true';
-        } else {
-            target.removeChild(tgt.children[0]);
-            target.dataset.refShown = 'false';
-        }
+    let target = evt.currentTarget;
+    var ref = target.dataset.ref.split("/");
+    var messagePath = routing.getFullMessagePath({
+        message: ref.pop(),
+        thread: ref.pop(),
+        board: ref.pop()
+    });
+    
+    let threadId = messagePath.board + "/" + messagePath.thread;
+    threadData = await DataRepository.getThread(threadId);
+    
+    if (target.dataset.refShown !== 'true') {
+        let message = threadData.messages[messagePath.message];
+        target.appendChild(renderMessage(message, messagePath));
+        target.dataset.refShown = 'true';
+    } else {
+        target.removeChild(target.children[0]);
+        target.dataset.refShown = 'false';
     }
+
 }
 function sendMessage(evt) {
     var threadId = currentURI.match(/\w+\/\d+/)[0];
@@ -327,17 +318,17 @@ function sendMessage(evt) {
     xhr.send(formData);
 }
 
+
+/**
+ * @typedef {Object} MessageData
+ * @property {string} [title] Message title
+ * @property {string} [email] Author's email
+ * @property {string} [pic] Attached picture's filename (no path, just the file's name)
+ * @property {string} [name] Author's name
+ * @property {string} [text] Raw message text
+ */
+
 const DataRepository = new function () {
-    /**
-     * @typedef {Object} MessageData
-     * @property {string} [title] Message title
-     * @property {string} [email] Author's email
-     * @property {string} [pic] Attached picture's filename (no path, just the file's name)
-     * @property {string} [name] Author's name
-     * @property {string} [text] Raw message text
-     * 
-     * //(origThread?)
-     */
 
     /** All the data related to a thread
      * @typedef {Object} ThreadData
@@ -352,7 +343,11 @@ const DataRepository = new function () {
         board: "board_",
         thread: "thread_"
     }
-
+    /** Loads the thread with the given ID
+     * @param {string} threadId Thread id — a string in the form "{boardName}/{threadNumber}"
+     * @returns {Promise<ThreadData>} Thread data
+     * @async
+     */
     const loadThread = async threadId => {
         let thread = threads[threadId] || {
             dataSize: 0,
@@ -370,7 +365,7 @@ const DataRepository = new function () {
             let messages = JSON.parse(rawData += "]");
             thread.messages = thread.messages.concat(messages);
             updateLocalStorageRecord("thread", threadId, thread);
-        }        
+        }
 
         return threads[threadId] = thread;
     }
@@ -403,31 +398,14 @@ const DataRepository = new function () {
  * @param {string} id thread's id
  */
 function renderThread(threadData, id) {
-    var params = uri.match(/^(\w+\/\d+)(\/(\d+)|)$/);
-    var threadId = params[1];
-    var selectedMessageId = params[3];
     contentDiv.innerHTML = "";
-    var addedImagesCount = threadData.length;
+    threadData.messages.forEach((messageData, index) => {
+        let messagePath = routing.getFullMessagePath({ message: index });
+        contentDiv.appendChild(renderMessage(messageData, messagePath));
+    });
 
-    //executed when each added image gets loaded
-    function imgOnload() {
-        addedImagesCount--;
-
-        if (addedImagesCount === 0)
-            highlightMessage(selectedMessageId);
-    }
-
-    for (var i in threadData) {
-        var messageData = threadData[i];
-        messageData.messageNum = i;
-        messageData.thread = threadId;
-        contentDiv.appendChild(renderMessage(messageData, imgOnload));
-    }
     var OpMessage = threadData[0];
-    document.title = defaultTitle + ((OpMessage.title !== "") ? OpMessage.title : OpMessage.text.substring(0, 50));
-
-    if (selectedMessageId !== undefined)
-        highlightMessage(selectedMessageId);
+    document.title = defaultTitle + (OpMessage.title ? OpMessage.title : OpMessage.text.substring(0, 50));
 }
 
 /**
@@ -473,26 +451,10 @@ function renderBoard(boardData) {
  * Shows a thread with the given ID
  * @param {String} uri Thread ID (aka URI)
  */
-async function showThread(id) {
-    let threadData = await DataRepository.getThread(id);
+async function showThread(board, thread) {
+    let threadId = board + "/" + thread;
+    let threadData = await DataRepository.getThread(threadId);
     renderThread(threadData, id);
-}
-
-/**
- * Load chosen thread's data into the global repository (`threads`). Sounds lika damn bad practice. Shoulda refactor that to avoid hidden global object manipulations
- * @param {URI} threadId Thread ID (URI)
- * @param {Function} onDone Callback function to pass the loaded data to.
- */
-function loadThread(threadId, onDone) {
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function () {
-        if ((xhr.readyState === 4) && (xhr.status === 200)) {
-            threads[threadId] = { data: JSON.parse(xhr.responseText + "]") };
-            onDone();
-        }
-    };
-    xhr.open("GET", threadId + "/posts.json?" + Math.random(), true);
-    xhr.send();
 }
 
 function notImplemented() {
@@ -521,7 +483,7 @@ function ajaxRequest(method, url, ranges, data) {
                     .join(", ");
             xhr.setRequestHeader("Range", headerValue);
         }
-        
+
         xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
                 if (!ranges || xhr.status === 206) {
