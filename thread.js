@@ -21,9 +21,17 @@ function init() {
 
 }
 
+/**@typedef {object} Path
+ * @property {string} board Board slug
+ * @property {number} thread thread number/slug (relative to board)
+ * @property {number} message message number/slug (relative to thread)
+ * @property {string} uri Full URI path to object as string. Appropriate to use as a link to it.
+ * @property {PathType} type Path type — what kind of object it is pointing to.
+ */
+
 const Routing = new function () {
-    /**
-     * Enum for URI types.
+    /** @typedef {string} PathType */
+    /**Enum for URI types.
      * @readonly
      * @enum {string}
     */
@@ -34,13 +42,13 @@ const Routing = new function () {
         message: "message"
     }
 
-    const uriParseRegex = /^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)\/?$/;
+    const uriParseRegex = /^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)?$/;
 
+    /** The path of the object specified in the address bar
+     * @var {Path} currentPath */
     let currentPath = {};
-    let currentURI = "";
 
-    /**
-     * Routing. Shows the view corresponding with the current URL hash or given other passed URI.
+    /** Routing. Shows the view corresponding with the current URL hash or given other passed URI.
      * @param {String} [uri] Address to go to, target object URI.
      */
     this.go = async function (uri) {
@@ -50,43 +58,61 @@ const Routing = new function () {
             uri = location.hash.replace("#", "");
         }
 
-        if (uri === currentURI) {
+        if (uri === currentPath.uri) {
             return;
         }
-        currentURI = uri;
 
-        let path = parseURIstring(uri);
+        currentPath = parseURIstring(uri);
 
-        if (path.type === pathType.invalid) { //if URI's unparsable — get out.
+        if (currentPath.type === pathType.invalid) { //if URI's unparsable — get out.
             alert("Invalid URI");
             return;
         }
 
-        if (path.type === pathType.board)
-            loadBoard(path.board);
-        else if (path.thread !== currentPath.thread)
-            await showThread(path.board, path.thread);
+        if (currentPath.type === pathType.board)
+            loadBoard(currentPath.board);
+        else if (currentPath.thread === currentPath.thread)
+            await showThread(currentPath.board, currentPath.thread);
 
-        if (path.type === pathType.message) {
-            highlightMessage(path.message);
+        if (currentPath.type === pathType.message) {
+            highlightMessage(currentPath.message);
         }
-
-        currentPath = path;
     }
 
-    /** Completes an incomplete (relative) path by filling missing values with the ones from current path
-     * @param {{board:string, thread:string, message:string}} incompletePath incomplete path to complete
-     * @returns {{board:string, thread:string, message:string}} Complete (absolute) path to the message
+    /** Completes an incomplete (relative) path by filling the missing values with the ones from the current path
+     * @param {Path} incompletePath Incomplete path to make complete
+     * @param {Path} completionData A valid path to borrow the missing parst from, defaults to the current path.
+     * @returns {Path} Complete (absolute) path to the message
     */
-    this.getFullMessagePath = incompletePath => ({
-        message: incompletePath.message,
-        thread: incompletePath.thread || currentPath.thread,
-        board: incompletePath.board || currentPath.board
-    })
+    this.completePath = (incompletePath, completionData = currentPath) => {
+        let result = {
+            message: incompletePath.message,
+            thread: incompletePath.thread || completionData.thread,
+            board: incompletePath.board || completionData.board
+        }
+        result.uri = [result.board, result.thread, result.message].join("/");
+        return result;
+    };
+    /** Creates a full path from a relative message reference
+     * @param {string} stringPath A relative or absolute link to a message. Acceptabe forms are "{message}", "{thread}/{message}","{board}/{thread}/{message}"
+     * @param {Path} completionData A valid path to borrow the missing parst from, defaults to the current path.
+     * @returns {Path}
+    */
+    this.completeMessageReference = (stringPath, completionData) => {
+        if (!uriParseRegex.test(stringPath))
+            return { type: pathType.invalid };
+        
+        let parts = stringPath.split("/");
 
-    /**
-     * Parses URI string into 3 components — board, thread and message.
-     * @param {string} uriString URI string formatted as "/boardName/threadNumber/messageNumber/"
+        return result = this.completePath({
+            message: parts.pop(),
+            thread: parts.pop(),
+            board: parts.pop()
+        }, completionData);
+    };
+
+    /** Parses URI string into 3 components — board, thread and message.
+     * @param {string} uriString URI string formatted as "boardName/threadNumber/messageNumber"
      * @returns {{board:string, thread:string, message:string, type:uriType}}
      */
     function parseURIstring(uriString) {
@@ -98,7 +124,8 @@ const Routing = new function () {
         let path = {
             board: matches[2],
             thread: matches[4],
-            message: matches[6]
+            message: matches[6],
+            uri: uriString
         };
 
         path.type = pathType.invalid;
@@ -129,12 +156,63 @@ function $$(selector) {
     return document.querySelectorAll(selector);
 }
 
-/**
- * An object (static class?) to perform multiple requests in an organized way
+/** Perform a single async AJAX request
+ * @async
+ * @param {String} method HTTP method ("GET", "POST" etc)
+ * @param {String} url URL to send request to
+ * 
+ * @param {number[][]} [ranges] HTTP ranges
+ * @param {Object} [data] data to send
+ * @return {Promise<{{repsonse: string, length: number}}>} Retrieved data and 'Content-Length' header value
  */
-const ajaxPool = new function () {
-    var poolSize = 5;
-    var requestsActive = 0;
+function ajaxRequest(method, url, ranges, data) {
+    return new Promise((resolve, reject) => {
+        let xhr = new XMLHttpRequest();
+        xhr.open(method, url);
+
+        if (ranges) {
+            let headerValue = "bytes="
+                + ranges.map(range => `${range[0]}-${range[1] || ""}`)
+                    .join(", ");
+            xhr.setRequestHeader("Range", headerValue);
+        }
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                if (!ranges || xhr.status === 206) {
+                    resolve({ response: xhr.response, length: xhr.getResponseHeader("Content-Length") });
+                } else {
+                    resolve({ response: "", length: 0 });
+                }
+            } else {
+                reject({
+                    status: xhr.status,
+                    statusText: xhr.statusText
+                });
+            }
+        };
+
+        xhr.onerror = () => {
+            reject({
+                status: xhr.status,
+                statusText: xhr.statusText
+            });
+        };
+        xhr.send(data);
+    });
+}
+
+
+/**
+ * An tool for performing multiple async AJAX requests while limiting their concurrency.
+ */
+const AjaxPool = new function () {
+    /** How many requests are allowed to run cuncurrently */
+    var cuncurrencyLimit = 5;
+    
+    /** How many requests are running right now */
+    var activeRequestCounter = 0;
+    /** Queue of requests yet to be sent */
     var queue = [];
 
     /**
@@ -142,34 +220,36 @@ const ajaxPool = new function () {
      * @returns {undefined}
      */
     function checkQueue() {
-        while (requestsActive <= poolSize && queue.length) {
-            let req = queue.pop();
-            let url = req.url;
-            let callback = req.callback;
-            requestsActive++;
-            ajaxGet(url, function (data) {
-                callback(data);
-                requestsActive--;
-                checkQueue();
-            });
+        while (activeRequestCounter <= cuncurrencyLimit && queue.length) {
+            let requestData = queue.pop();
+            activeRequestCounter++;
+            ajaxRequest(...requestData.params).then(
+                data => {
+                    requestData.resolve(data);
+                    activeRequestCounter--;
+                    checkQueue();
+                },
+                data => {
+                    requestData.reject(data);
+                    activeRequestCounter--;
+                    checkQueue();
+                }
+            );
         }
     }
     /**
-     * Adds an HTTP GET request to the request queue
-     * @param {URL} url URL to request
-     * @param {function} callback Callback function to call after receiving the reply
-     * @returns {undefined}
+     * Adds an HTTP GET request to the request queue, usage same as for ajaxRequest() function.
      */
-    this.addRequest = function (url, callback) {
-        queue.push({ 'url': url, 'callback': callback });
-        checkQueue();
-    };
-
-    /**
-     * This turns out to be unneeded with the use of Promises.
-     */
-    this.createQueue = function (onComplete) {
-    };
+    this.addRequest = function (...args) {
+        return new Promise((resolve, reject) => {
+            queue.push({
+                resolve: resolve,
+                reject: reject,
+                params: args
+            })
+            checkQueue();
+        });
+    }
 };
 
 /**
@@ -177,40 +257,40 @@ const ajaxPool = new function () {
  * @param {String} messageId Id of the message to highlight.
  */
 function highlightMessage(messageId) {
-    contentDiv.getElementsByClassName(".selected")[0].classList.remove("selected");
+    let highlightedMessages = contentDiv.getElementsByClassName(".selected");
+    if (highlightedMessages.length) {
+        highlightedMessages[0].classList.remove("selected");
+    }
     var messageDiv = contentDiv.children[messageId];
     messageDiv.classList.add("selected");
     messageDiv.scrollIntoView();
 }
 
 /**
- * TODO: UPDATE PARAMS DESCRIPTION Renders a message with the given data into a DOM element and appends it to the given container
- * @param messageData Message data
- * @param {Number} messageData.messageNum In-thread message index
- * @param {String} messageData.title Message title, optional
- * @param {String} messageData.email Message email field, optional
- * @param {String} messageData.pic Picture file filename.
- * @param {String} messageData.date Message submit date-time
- * @param {String} messageData.text Message text
+ * Renders a message with the given data into a DOM element
+ * @param {MessageData} messageData Message data that belongs to the message itself, i.e. what the user has submitted.
+ * @param {Path} routeData Routing data for the message specifying its place in board structure.
  * @returns {Element} Rendered message DOM element
  */
-function renderMessage(messageData, messagePath) {
+function renderMessage(messageData, routeData) {
     var newMessage = messageTemplate.cloneNode(true);
 
-    newMessage.addEventListener("click", function () { highlightMessage(messagePath.message) }, false);
+    newMessage.addEventListener("click", function () { highlightMessage(routeData.message) }, false);
 
-    newMessage.getElementsByClassName("messageNumber")[0].innerHTML = messagePath.message;
+    let messageNumber = newMessage.getElementsByClassName("messageNumber")[0];
+    messageNumber.innerHTML = routeData.message;
+    messageNumber.addEventListener("click", function () { Routing.go(routeData.uri); });
 
     if (messageData.title)
         newMessage.getElementsByClassName("messageTitle")[0].innerHTML = messageData.title;
-    
+
     if (messageData.email)
         newMessage.getElementsByClassName("messageMail")[0].href = "mailto:" + messageData.email;
-    
+
     if (messageData.pic) {
         var pic = newMessage.getElementsByTagName("img")[0];
-        pic.src = messageData.thread + "/thumb/" + messageData.pic;
-        pic.dataset.altSrc = messageData.thread + "/src/" + messageData.pic;
+        pic.src = routeData.thread + "/thumb/" + messageData.pic;
+        pic.dataset.altSrc = routeData.thread + "/src/" + messageData.pic;
         pic.addEventListener("click", function (event) {
             event.stopPropagation();
             event.preventDefault();
@@ -220,14 +300,15 @@ function renderMessage(messageData, messagePath) {
             this.dataset.altSrc = temp;
         });
         pic.parentNode.onclick = function () { return false; };
-        pic.parentNode.href = messageData.thread + "/src/" + messageData.pic;
+        pic.parentNode.href = routeData.thread + "/src/" + messageData.pic;
     }
     if (messageData.date)
         newMessage.getElementsByClassName("messageDate")[0].innerHTML = messageData.date;
     if (messageData.name !== undefined)
         newMessage.getElementsByClassName("messageName")[0].innerHTML = messageData.name;
-
-    newMessage.getElementsByClassName("origThread")[0].href = `#${messagePath.board}/${messagePath.thread}/${messagePath.message}`;
+    
+    newMessage.getElementsByClassName("replyLink")[0]
+        .addEventListener("click", function () { addReplyRef(routeData.message); });
 
     //Message text - markup and stuff:
     if (messageData.text !== undefined) {
@@ -259,9 +340,9 @@ function renderMessage(messageData, messagePath) {
     var refs = newMessage.getElementsByClassName("msg_ref");
     for (var i = 0; i < refs.length; i++) {
         refs[i].addEventListener("click", showRef, false);
-        var href = refs[i].href.split("#")[1];
-        if (!href.match("/"))
-            refs[i].href = "#" + currentURI + "/" + href;
+        let href = refs[i].href.split("#")[1];
+        let refPath = Routing.completeMessageReference(href, routeData);
+        refs[i].href = "#" + refPath.uri;
     }
     return newMessage;
 }
@@ -272,15 +353,15 @@ async function showRef(evt) {
 
     let target = evt.currentTarget;
     var ref = target.dataset.ref.split("/");
-    var messagePath = Routing.getFullMessagePath({
+    var messagePath = Routing.completePath({
         message: ref.pop(),
         thread: ref.pop(),
         board: ref.pop()
     });
-    
+
     let threadId = messagePath.board + "/" + messagePath.thread;
     threadData = await DataRepository.getThread(threadId);
-    
+
     if (target.dataset.refShown !== 'true') {
         let message = threadData.messages[messagePath.message];
         target.appendChild(renderMessage(message, messagePath));
@@ -291,6 +372,7 @@ async function showRef(evt) {
     }
 
 }
+
 function sendMessage(evt) {
     var threadId = currentURI.match(/\w+\/\d+/)[0];
     evt.preventDefault();
@@ -333,7 +415,7 @@ const DataRepository = new function () {
     let threads = {};
 
     let boards = {};
-    
+
     const localStorageKeyPrefixes = {
         board: "board_",
         thread: "thread_"
@@ -350,7 +432,7 @@ const DataRepository = new function () {
             messages: []
         };
         let size = thread.dataSize;
-        let dataRequest = await ajaxRequest("GET", threadId, [[size]]);
+        let dataRequest = await AjaxPool.addRequest("GET", threadId + "/posts.json", [[size]]);
         let length = dataRequest.length;
         if (length) {
             thread.dataSize += length;
@@ -397,7 +479,7 @@ const DataRepository = new function () {
 function renderThread(threadData, id) {
     contentDiv.innerHTML = "";
     threadData.messages.forEach((messageData, index) => {
-        let messagePath = Routing.getFullMessagePath({ message: index });
+        let messagePath = Routing.completePath({ message: index });
         contentDiv.appendChild(renderMessage(messageData, messagePath));
     });
 
@@ -451,7 +533,7 @@ function renderBoard(boardData) {
 async function showThread(board, thread) {
     let threadId = board + "/" + thread;
     let threadData = await DataRepository.getThread(threadId);
-    renderThread(threadData, id);
+    renderThread(threadData, threadId);
 }
 
 function notImplemented() {
@@ -460,53 +542,6 @@ function notImplemented() {
 
 //@param {{name: string, value: string}} headers additional headers to set
 
-/** Performs async AJAX request
- * @async
- * @param {String} method HTTP method ("GET", "POST" etc)
- * @param {String} url URL to send request to
- * 
- * @param {number[][]} [ranges] HTTP ranges
- * @param {Object} [data] data to send
- * @return {Promise<{{repsonse: string, length: number}}>} Retrieved data and 'Content-Length' header value
- */
-function ajaxRequest(method, url, ranges, data) {
-    return new Promise((resolve, reject) => {
-        let xhr = new XMLHttpRequest();
-        xhr.open(method, url);
-
-        if (ranges) {
-            let headerValue = "bytes="
-                + ranges.map(range => `${range[0]}-${range[1] || ""}`)
-                    .join(", ");
-            xhr.setRequestHeader("Range", headerValue);
-        }
-
-        xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                if (!ranges || xhr.status === 206) {
-                    resolve({ response: xhr.response, length: xhr.getResponseHeader("Content-Length") });
-                } else {
-                    resolve({ response: "", length: 0 });
-                }
-            } else {
-                reject({
-                    status: xhr.status,
-                    statusText: xhr.statusText
-                });
-            }
-        };
-
-        xhr.onerror = () => {
-            reject({
-                status: xhr.status,
-                statusText: xhr.statusText
-            });
-        };
-        xhr.send(data);
-    });
-}
-
-//ajaxRequest("GET", "/b",,);
 
 /**
  * Manually load a board index datafile and show the board.
@@ -518,7 +553,7 @@ function loadBoard(boardId, ondone) {
         board.id = boardId;
         boards[boardId] = board;
 
-        var queue = ajaxPool.createQueue(function () {
+        var queue = AjaxPool.createQueue(function () {
             renderBoard(board);
         });
         for (var i = 0; i < board.length; i++) {
@@ -542,9 +577,9 @@ function loadBoard(boardId, ondone) {
  * @param {type} event Event being handled.
  * @param {type} messageNum Message number to be inserted.
  */
-function addReplyRef(event, messageNum) {
-    event.preventDefault();
-    event.stopPropagation();
+function addReplyRef(/*event,*/ messageNum) {
+    // event.preventDefault();
+    // event.stopPropagation();
     var textarea = document.querySelector("#post-form textarea");
     textarea.value += ">>" + messageNum + "\n";
     textarea.focus();

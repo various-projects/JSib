@@ -5,7 +5,8 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="stylesheet" type="text/css" href="thread.css">
-        <link rel="stylesheet" type="text/css" href="dark.css">        
+        <link rel="stylesheet" type="text/css" href="dark.css">
+        <script src="thread.js"> </script>
     </head>
     <body>
         <div style="position:fixed">
@@ -34,7 +35,58 @@
                 </li>
             </ul>
         </div>
+        <div id="info"></div>
         
-        <div>TODO write content</div>
+        <!-- Posting form -->
+    	<form id="post-form" action="post.php" method="POST" enctype="multipart/form-data">
+        <table align="center" style="max-width:50%;min-width:300px;">
+            <col><col width="99%">
+            <tr>
+                <td nowrap>E-mail:</td>
+                <td><input name="email"></td>
+            </tr>
+            <tr>
+                <td>Name:</td>
+                <td><input name="name"></td>
+            </tr>
+            <tr>
+                <td>Title:</td>
+                <td><input name="title"></td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <textarea name="text" style="height:100px;"></textarea>
+                    <br>Hint: **<b>bold</b>**, *<i>italic</i>*, __<u>underline</u>__,
+                    [s]<s>strike-through</s>[/s], %%<span class="spoiler">spoiler</span>%%
+                </td>
+            </tr>
+            <tr>
+            	<td colspan=2><input name="file" type="file" style="width:100%"></td>
+            </tr>
+            <tr><td colspan=2><input id="postSendSubmit" type="submit" value="Post-It!"></td></tr>
+        </table>
+        </form>
+        
+        <!-- Main thread container -->
+        <div id="content" onload="handleHash"></div>
+        
+        <div class="templates" style="display:none">
+            <!-- Message template -->
+            <div id="messageTemplate" class="message">
+                <div class="messageHeader">
+                    #<a class="messageNumber" title="Go to message">0</a>
+                    left in <span class="messageDate">12 Jan 1945 at 12:45</span>
+                    <a class="messageMail"><span class="messageName">Anonymous</span></a>
+                    <span class="messageTitle"></span>
+                    <a class="origThread" onclick="goOrigThread(event)">→original thread</a>
+                    <a class="replyLink">→reply</a>
+                </div>
+                <a href="#">
+                    <img class="messagePic" alt="Thumb">
+                </a>
+                <span class="messageText"> </span>            
+            </div>
+        </div>
+        
     </body>
 </html>
