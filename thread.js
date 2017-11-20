@@ -21,7 +21,19 @@ function init() {
 
 }
 
-/**@typedef {object} Path
+/** @typedef {string} PathType */
+/**Enum for URI types.
+ * @readonly
+ * @enum {string}
+*/
+const pathType = {
+    invalid: "invalid",
+    board: "board",
+    thread: "thread",
+    message: "message"
+}
+
+/**@typedef {object} PathData
  * @property {string} board Board slug
  * @property {number} thread thread number/slug (relative to board)
  * @property {number} message message number/slug (relative to thread)
@@ -29,18 +41,27 @@ function init() {
  * @property {PathType} type Path type — what kind of object it is pointing to.
  */
 
-const Routing = new function () {
-    /** @typedef {string} PathType */
-    /**Enum for URI types.
-     * @readonly
-     * @enum {string}
-    */
-    const pathType = {
-        invalid: "invalid",
-        board: "board",
-        thread: "thread",
-        message: "message"
+class Path{
+    /**
+     * @param {PathData} properties
+     * @constructor
+     */
+    constructor(properties = {}) {
+        this.board = properties.board;
+        this.thread = properties.thread;
+        this.message = properties.message;
+        this.type = properties.type;
     }
+    get uri() {
+        let parts = [];
+        if (this.board) parts.push(this.board);
+        if (this.thread) parts.push(this.thread);
+        if (this.message) parts.push(this.message);
+        return parts.join("/");
+    }
+}
+
+const Routing = new function () {
 
     const uriParseRegex = /^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)?$/;
 
@@ -80,9 +101,9 @@ const Routing = new function () {
     }
 
     /** Completes an incomplete (relative) path by filling the missing values with the ones from the current path
-     * @param {Path} incompletePath Incomplete path to make complete
-     * @param {Path} completionData A valid path to borrow the missing parst from, defaults to the current path.
-     * @returns {Path} Complete (absolute) path to the message
+     * @param {PathData} incompletePath Incomplete path to make complete
+     * @param {PathData} completionData A valid path to borrow the missing parst from, defaults to the current path.
+     * @returns {PathData} Complete (absolute) path to the message
     */
     this.completePath = (incompletePath, completionData = currentPath) => {
         let result = {
@@ -95,7 +116,7 @@ const Routing = new function () {
     };
     /** Creates a full path from a relative message reference
      * @param {string} stringPath A relative or absolute link to a message. Acceptabe forms are "{message}", "{thread}/{message}","{board}/{thread}/{message}"
-     * @param {Path} completionData A valid path to borrow the missing parst from, defaults to the current path.
+     * @param {PathData} completionData A valid path to borrow the missing parst from, defaults to the current path.
      * @returns {Path}
     */
     this.completeMessageReference = (stringPath, completionData) => {
@@ -269,7 +290,7 @@ function highlightMessage(messageId) {
 /**
  * Renders a message with the given data into a DOM element
  * @param {MessageData} messageData Message data that belongs to the message itself, i.e. what the user has submitted.
- * @param {Path} routeData Routing data for the message specifying its place in board structure.
+ * @param {PathData} routeData Routing data for the message specifying its place in board structure.
  * @returns {Element} Rendered message DOM element
  */
 function renderMessage(messageData, routeData) {
