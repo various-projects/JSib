@@ -64,6 +64,10 @@ class Path{
         return parts.join("/");
     }
 
+    get threadId(){//not sure if it should belong here or go to Routing…
+        return [this.board, this.thread].join("/");
+    }
+
     /** {PathType} Returns the type of object the path is pointing to */
     get type() {
         if (this.message) {
@@ -99,7 +103,7 @@ class Path{
 const Routing = new function () {
     const uriParseRegex = /^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)?$/;
 
-    /** The path of the object specified in the address bar
+    /** The path to the object specified in the address bar
      * @var {Path} currentPath */
     let currentPath = {};
 
@@ -128,7 +132,7 @@ const Routing = new function () {
             loadBoard(currentPath.board);
         }
         else if (currentPath.thread === currentPath.thread) {
-            await showThread(currentPath.uri);
+            await showThread(currentPath.threadId);
         }
 
         if (currentPath.type === PathType.message) {
@@ -396,8 +400,7 @@ async function showRef(evt) {
         board: ref.pop()
     });
 
-    let threadId = messagePath.board + "/" + messagePath.thread;
-    threadData = await DataRepository.getThread(threadId);
+    threadData = await DataRepository.getThread(messagePath.threadId);
 
     if (target.dataset.refShown !== 'true') {
         let message = threadData.messages[messagePath.message];
@@ -412,10 +415,8 @@ async function showRef(evt) {
 
 async function sendMessage(evt) {
     evt.preventDefault();
-
-    let path = Routing.getPath();
-    path.message = undefined;
-    let threadId = path.uri;
+    
+    let threadId = Routing.getPath().threadId;
     
     let form = $("#post-form");
     let formData = new FormData(form);
@@ -564,9 +565,9 @@ function renderBoard(boardData) {
 
 /**
  * Shows a thread with the given ID
- * @param {String} uri Thread URI
+ * @param {String} threadId Thread ID
  */
-async function showThread(uri) {
+async function showThread(threadId) {
     let threadData = await DataRepository.getThread(uri);
     renderThread(threadData, threadId);
 }
