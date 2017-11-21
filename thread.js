@@ -24,13 +24,13 @@ function init() {
 /** @typedef {string} PathType */
 /**Enum for URI types.
  * @readonly
- * @enum {string}
+ * @enum {number}
 */
-const pathType = {
-    invalid: "invalid",
-    board: "board",
-    thread: "thread",
-    message: "message"
+const PathType = {
+    invalid: 0,
+    board: 1,
+    thread: 2,
+    message: 3
 }
 
 /**@typedef {object} PathData
@@ -41,16 +41,20 @@ const pathType = {
  * @property {PathType} type Path type — what kind of object it is pointing to.
  */
 
+ /** Class representing an object routing path
+ * @property {string} board Board slug
+ * @property {number} thread thread number/slug (relative to board)
+ * @property {number} message message number/slug (relative to thread)
+ * @property {PathType} type Path type — what kind of object it is pointing to.
+  */
 class Path{
     /**
      * @param {PathData} properties
-     * @constructor
      */
     constructor(properties = {}) {
         this.board = properties.board;
         this.thread = properties.thread;
         this.message = properties.message;
-        this.type = properties.type;
     }
     get uri() {
         let parts = [];
@@ -59,10 +63,40 @@ class Path{
         if (this.message) parts.push(this.message);
         return parts.join("/");
     }
+
+    /** {PathType} Returns the type of object the path is pointing to */
+    get type() {
+        if (this.message) {
+            return PathType.message;
+        }
+    
+        if (this.thread) {
+            return PathType.thread;
+        }
+    
+        if (this.board) {
+            return PathType.board;
+        }
+    
+        return PathType.invalid;
+    }
+
+    /** Completes a cripple path with donor's parts
+     * @param {Path} cripple Incomplete path to make complete.
+     * @param {Path} donor Parts donor from which the missing parts should be borrowed.
+     */
+    static makeComplete(cripple, donor) {
+        let result = {
+            message: cripple.message || donor.message,
+            thread: cripple.thread || donor.thread,
+            board: cripple.board || donor.board
+        }
+        result.type = Math.max(cripple.type, donor.type);
+        return new Path(result);
+    }
 }
 
 const Routing = new function () {
-
     const uriParseRegex = /^((\w+)\/?(\/(\d+)|))\/?(\/(\d+)|)?$/;
 
     /** The path of the object specified in the address bar
@@ -85,43 +119,39 @@ const Routing = new function () {
 
         currentPath = parseURIstring(uri);
 
-        if (currentPath.type === pathType.invalid) { //if URI's unparsable — get out.
+        if (currentPath.type === PathType.invalid) { //if URI's unparsable — get out.
             alert("Invalid URI");
             return;
         }
 
-        if (currentPath.type === pathType.board)
+        if (currentPath.type === PathType.board) {
             loadBoard(currentPath.board);
-        else if (currentPath.thread === currentPath.thread)
-            await showThread(currentPath.board, currentPath.thread);
+        }
+        else if (currentPath.thread === currentPath.thread) {
+            await showThread(currentPath.uri);
+        }
 
-        if (currentPath.type === pathType.message) {
+        if (currentPath.type === PathType.message) {
             highlightMessage(currentPath.message);
         }
     }
 
-    /** Completes an incomplete (relative) path by filling the missing values with the ones from the current path
-     * @param {PathData} incompletePath Incomplete path to make complete
-     * @param {PathData} completionData A valid path to borrow the missing parst from, defaults to the current path.
-     * @returns {PathData} Complete (absolute) path to the message
+    /** Returns the current path or completes a given relative path with its parts.
+     * @param {Path} incompletePath Incomplete path to make complete
+     * @returns {Path|PathData} Complete (absolute) path to the message
     */
-    this.completePath = (incompletePath, completionData = currentPath) => {
-        let result = {
-            message: incompletePath.message,
-            thread: incompletePath.thread || completionData.thread,
-            board: incompletePath.board || completionData.board
-        }
-        result.uri = [result.board, result.thread, result.message].join("/");
-        return result;
-    };
+    this.getPath = incompletePath =>
+        Path.makeComplete(incompletePath, currentPath);
+    
     /** Creates a full path from a relative message reference
      * @param {string} stringPath A relative or absolute link to a message. Acceptabe forms are "{message}", "{thread}/{message}","{board}/{thread}/{message}"
-     * @param {PathData} completionData A valid path to borrow the missing parst from, defaults to the current path.
+     * @param {PathData|Path} completionData A valid path to borrow the missing parst from, defaults to the current path.
      * @returns {Path}
     */
     this.completeMessageReference = (stringPath, completionData) => {
-        if (!uriParseRegex.test(stringPath))
-            return { type: pathType.invalid };
+        if (!uriParseRegex.test(stringPath)) {
+            return new Path();
+        }
         
         let parts = stringPath.split("/");
 
@@ -134,34 +164,20 @@ const Routing = new function () {
 
     /** Parses URI string into 3 components — board, thread and message.
      * @param {string} uriString URI string formatted as "boardName/threadNumber/messageNumber"
-     * @returns {{board:string, thread:string, message:string, type:uriType}}
+     * @returns {Path}
      */
     function parseURIstring(uriString) {
         let matches = uriString.match(uriParseRegex);
 
-        if (matches == null)
-            return { type: pathType.invalid };
+        if (!matches) {
+            return new Path();
+        }
 
-        let path = {
+        return new Path({
             board: matches[2],
             thread: matches[4],
-            message: matches[6],
-            uri: uriString
-        };
-
-        path.type = pathType.invalid;
-
-        if (path.board !== undefined) {
-            path.type = pathType.board;
-        }
-        if (path.thread !== undefined) {
-            path.type = pathType.thread;
-        }
-        if (path.message !== undefined) {
-            path.type = pathType.message;
-        }
-
-        return JSON.parse(JSON.stringify(path));//quickest way to remove `undefined` properties
+            message: matches[6]
+        })
     }
 }
 
@@ -225,7 +241,7 @@ function ajaxRequest(method, url, ranges, data) {
 
 
 /**
- * An tool for performing multiple async AJAX requests while limiting their concurrency.
+ * A tool for performing multiple async AJAX requests while limiting their concurrency.
  */
 const AjaxPool = new function () {
     /** How many requests are allowed to run cuncurrently */
@@ -290,7 +306,7 @@ function highlightMessage(messageId) {
 /**
  * Renders a message with the given data into a DOM element
  * @param {MessageData} messageData Message data that belongs to the message itself, i.e. what the user has submitted.
- * @param {PathData} routeData Routing data for the message specifying its place in board structure.
+ * @param {Path} routeData Routing data for the message specifying its place in board structure.
  * @returns {Element} Rendered message DOM element
  */
 function renderMessage(messageData, routeData) {
@@ -374,7 +390,7 @@ async function showRef(evt) {
 
     let target = evt.currentTarget;
     var ref = target.dataset.ref.split("/");
-    var messagePath = Routing.completePath({
+    var messagePath = Routing.getPath({
         message: ref.pop(),
         thread: ref.pop(),
         board: ref.pop()
@@ -394,27 +410,26 @@ async function showRef(evt) {
 
 }
 
-function sendMessage(evt) {
-    var threadId = currentURI.match(/\w+\/\d+/)[0];
+async function sendMessage(evt) {
     evt.preventDefault();
-    var form = $("#post-form");
-    var formData = new FormData(form);
-    formData.append("threadId", currentURI.match(/\w+\/\d+/)[0]);
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            if (xhr.responseText.length > 5) {
-                alert(xhr.responseText);
-            }
-            else {
-                form.reset();
-            }
-            loadThread(threadId, function () { showThread(currentURI) });
-            $("#postSendSubmit").blur();
-        }
-    };
-    xhr.open("POST", "post.php", true);
-    xhr.send(formData);
+
+    let path = Routing.getPath();
+    path.message = undefined;
+    let threadId = path.uri;
+    
+    let form = $("#post-form");
+    let formData = new FormData(form);
+
+    formData.append("threadId", threadId);
+
+    try {
+        await ajaxRequest("POST", "post.php", false , formData);
+        form.reset();
+        $("#postSendSubmit").blur();
+    }
+    catch(err){
+        alert(err.responseText);
+    }
 }
 
 
@@ -500,7 +515,7 @@ const DataRepository = new function () {
 function renderThread(threadData, id) {
     contentDiv.innerHTML = "";
     threadData.messages.forEach((messageData, index) => {
-        let messagePath = Routing.completePath({ message: index });
+        let messagePath = Routing.getPath({ message: index });
         contentDiv.appendChild(renderMessage(messageData, messagePath));
     });
 
@@ -549,11 +564,10 @@ function renderBoard(boardData) {
 
 /**
  * Shows a thread with the given ID
- * @param {String} uri Thread ID (aka URI)
+ * @param {String} uri Thread URI
  */
-async function showThread(board, thread) {
-    let threadId = board + "/" + thread;
-    let threadData = await DataRepository.getThread(threadId);
+async function showThread(uri) {
+    let threadData = await DataRepository.getThread(uri);
     renderThread(threadData, threadId);
 }
 
