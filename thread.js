@@ -429,8 +429,10 @@ async function sendMessage(evt) {
         $("#postSendSubmit").blur();
     }
     catch(err){
-        alert(err.responseText);
+        alert(err.statusText);
     }
+    
+    showThread(threadId);
 }
 
 
