@@ -449,16 +449,28 @@ const DataRepository = new function () {
     /** All the data related to a thread
      * @typedef {Object} ThreadData
      * @property {number} dataSize The size of the datafile retrieved for the thread on the last successful request.
-     * @property {MessageData[]} messages Posts of the thread
-     */
+     * @property {MessageData[]} messages Messages of the thread
+    */
+
     let threads = {};
 
     let boards = {};
 
-    const localStorageKeyPrefixes = {
-        board: "board_",
-        thread: "thread_"
+    let storageDictionary = {
+        "board": boards,
+        "thread": threads
     };
+    
+    function updateItemFromLS(key, value) {
+        let [type, id] = key.split("_");
+        (storageDictionary[type] || {})[id] = JSON.parse(value);
+    }
+
+    this.init = () => {
+        Object.keys(localStorage).forEach(key => updateItemFromLS(key, localStorage.getItem(key)));
+
+        window.onstorage = event => updateItemFromLS(e.key, e.newValue);
+    }
 
     /** Loads the thread with the given ID
      * @param {string} threadId Thread id — a string in the form "{boardName}/{threadNumber}"
@@ -492,23 +504,18 @@ const DataRepository = new function () {
         localStorage.setItem(key, JSON.stringify(data));
     }
 
-    this.init = () => {
-        let localStorageData = Object.keys(localStorage).map(key => ({ key: key, value: localStorage.getItem(key) }));
-
-        let boardKeyMatch = new RegExp(`^${localStorageKeyPrefixes.board}(.*)$`);
-        localStorageData.filter(item => item.key.test(boardKeyMatch))
-            .forEach(item => boards[item.key.match(boardKeyMatch)[1]] = JSON.parse(item.value));
-
-        let threadKeyMatch = new RegExp(`^${localStorageKeyPrefixes.thread}(.*)$`);
-        localStorageData.filter(item => item.key.test(threadKeyMatch))
-            .forEach(item => threads[item.key.match(threadKeyMatch)[1] = JSON.parse(item.value)]);
-    }
-
     /** Get thread data (load if needed)
      * @param {string} threadId Thread's id
      * @return {ThreadData} Thread data
      */
-    this.getThread = async threadId => threads[threadId] ? Promise.resolve(threads[threadId]) : await loadThread(threadId);
+    this.getThread = async threadId => {
+        try{ //try to update data
+            await loadThread(threadId);
+        }
+        finally{ //and return the data anyway
+            return threads[threadId];
+        }
+    }
 }
 
 /** Render thread data into view
