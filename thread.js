@@ -307,85 +307,139 @@ function highlightMessage(messageId) {
     messageDiv.scrollIntoView();
 }
 
-/**
- * Renders a message with the given data into a DOM element
- * @param {MessageData} messageData Message data that belongs to the message itself, i.e. what the user has submitted.
- * @param {Path} routeData Routing data for the message specifying its place in board structure.
- * @returns {Element} Rendered message DOM element
- */
-function renderMessage(messageData, routeData) {
-    var newMessage = messageTemplate.cloneNode(true);
+const Renderer = new function(){
+    /**
+    * Renders a message with the given data into a DOM element
+    * @param {MessageData} messageData Message data that belongs to the message itself, i.e. what the user has submitted.
+    * @param {Path} routeData Routing data for the message specifying its place in board structure.
+    * @returns {Element} Rendered message DOM element
+    */
+    this.renderMessage = function(messageData, routeData) {
+        var newMessage = messageTemplate.cloneNode(true);
 
-    newMessage.addEventListener("click", function () { highlightMessage(routeData.message) }, false);
+        newMessage.addEventListener("click", function () { highlightMessage(routeData.message) }, false);
 
-    let messageNumber = newMessage.getElementsByClassName("messageNumber")[0];
-    messageNumber.innerHTML = routeData.message;
-    messageNumber.addEventListener("click", function () { Routing.go(routeData.uri); });
+        let messageNumber = newMessage.getElementsByClassName("messageNumber")[0];
+        messageNumber.innerHTML = routeData.message;
+        messageNumber.addEventListener("click", function () { Routing.go(routeData.uri); });
 
-    if (messageData.title)
-        newMessage.getElementsByClassName("messageTitle")[0].innerHTML = messageData.title;
+        if (messageData.title)
+            newMessage.getElementsByClassName("messageTitle")[0].innerHTML = messageData.title;
 
-    if (messageData.email)
-        newMessage.getElementsByClassName("messageMail")[0].href = "mailto:" + messageData.email;
+        if (messageData.email)
+            newMessage.getElementsByClassName("messageMail")[0].href = "mailto:" + messageData.email;
 
-    if (messageData.pic) {
-        var pic = newMessage.getElementsByTagName("img")[0];
-        pic.src = routeData.thread + "/thumb/" + messageData.pic;
-        pic.dataset.altSrc = routeData.thread + "/src/" + messageData.pic;
-        pic.addEventListener("click", function (event) {
-            event.stopPropagation();
-            event.preventDefault();
+        if (messageData.pic) {
+            var pic = newMessage.getElementsByTagName("img")[0];
+            pic.src = routeData.thread + "/thumb/" + messageData.pic;
+            pic.dataset.altSrc = routeData.thread + "/src/" + messageData.pic;
+            pic.addEventListener("click", function (event) {
+                event.stopPropagation();
+                event.preventDefault();
 
-            var temp = this.src;
-            this.src = this.dataset.altSrc;
-            this.dataset.altSrc = temp;
+                var temp = this.src;
+                this.src = this.dataset.altSrc;
+                this.dataset.altSrc = temp;
+            });
+            pic.parentNode.onclick = function () { return false; };
+            pic.parentNode.href = routeData.thread + "/src/" + messageData.pic;
+        }
+        if (messageData.date)
+            newMessage.getElementsByClassName("messageDate")[0].innerHTML = messageData.date;
+        if (messageData.name !== undefined)
+            newMessage.getElementsByClassName("messageName")[0].innerHTML = messageData.name;
+        
+        newMessage.getElementsByClassName("replyLink")[0]
+            .addEventListener("click", function () { addReplyRef(routeData.message); });
+
+        //Message text - markup and stuff:
+        if (messageData.text !== undefined) {
+            var text = messageData.text;
+            //URL links:
+            text = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+
+            //Message references:
+            //like >>/b/123/123, >>123/123, >>123
+            text = text.replace(/>>((\w+\/|)(\d+\/|)\d+)/g, "<a data-ref='$1' href='#$1' class='msg_ref'>$&</a>");
+
+            //Markup:
+            //**bold**
+            text = text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+            //*italic*
+            text = text.replace(/\*(.*?)\*/g, "<i>$1</i>");
+            //__underline__
+            text = text.replace(/__(.*?)__/g, "<u>$1</u>");
+            //%%spoiler%%
+            text = text.replace(/%%(.*?)%%/g, "<span class='spoiler'>$1</span>");
+            //[s]strike-through[/s]
+            text = text.replace(/\[s\](.*?)\[\/s\]/g, "<s>$1</s>");
+
+            //>quote
+            text = text.replace(/(^|<br>)(>[^>].*?)($|<br>)/g, "$1<span class='quote'>$2</span>$3");
+
+            newMessage.getElementsByClassName("messageText")[0].innerHTML = text;
+        }
+        var refs = newMessage.getElementsByClassName("msg_ref");
+        for (var i = 0; i < refs.length; i++) {
+            refs[i].addEventListener("click", showRef, false);
+            let href = refs[i].href.split("#")[1];
+            let refPath = Routing.completeMessageReference(href, routeData);
+            refs[i].href = "#" + refPath.uri;
+        }
+        return newMessage;
+    }
+
+    /** Render thread data into view
+     * @param {ThreadData} threadData Thread's data
+     * @param {string} id thread's id
+     */
+    this.renderThread = function(threadData, id) {
+        let container = document.createElement("div");
+        threadData.messages.forEach((messageData, index) => {
+            let messagePath = Routing.getPath({ message: index });
+            container.appendChild(this.renderMessage(messageData, messagePath));
         });
-        pic.parentNode.onclick = function () { return false; };
-        pic.parentNode.href = routeData.thread + "/src/" + messageData.pic;
+        let opMessage = threadData[0];
+        document.title = defaultTitle + (opMessage.title ? opMessage.title : opMessage.text.substring(0, 50));
     }
-    if (messageData.date)
-        newMessage.getElementsByClassName("messageDate")[0].innerHTML = messageData.date;
-    if (messageData.name !== undefined)
-        newMessage.getElementsByClassName("messageName")[0].innerHTML = messageData.name;
-    
-    newMessage.getElementsByClassName("replyLink")[0]
-        .addEventListener("click", function () { addReplyRef(routeData.message); });
 
-    //Message text - markup and stuff:
-    if (messageData.text !== undefined) {
-        var text = messageData.text;
-        //URL links:
-        text = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+    /**Renders a board
+     * @param {string[]} boardData - array of thread IDs relative to board. That is, just numbers.
+     * @param {string} boardData.id - board's own id.
+     */
+    this.renderBoard = function(boardData) {
+        contentDiv.innerHTML = "";
+        var isFirst = true;
+        boardData.forEach(threadId => {
+            if (isFirst) isFirst = false;
+            else contentDiv.appendChild(document.createElement("hr"));
 
-        //Message references:
-        //like >>/b/123/123, >>123/123, >>123
-        text = text.replace(/>>((\w+\/|)(\d+\/|)\d+)/g, "<a data-ref='$1' href='#$1' class='msg_ref'>$&</a>");
+            var thread = threads[boardData.id + "/" + boardData[threadId]];
+            var opPostRendered = renderMessage(thread[0]);
+            opPostRendered.className = "OP-post";
+            contentDiv.appendChild(opPostRendered);
 
-        //Markup:
-        //**bold**
-        text = text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
-        //*italic*
-        text = text.replace(/\*(.*?)\*/g, "<i>$1</i>");
-        //__underline__
-        text = text.replace(/__(.*?)__/g, "<u>$1</u>");
-        //%%spoiler%%
-        text = text.replace(/%%(.*?)%%/g, "<span class='spoiler'>$1</span>");
-        //[s]strike-through[/s]
-        text = text.replace(/\[s\](.*?)\[\/s\]/g, "<s>$1</s>");
+            var replies = thread.slice(1);
+            var skippedReplies = replies.slice(0, -3);
 
-        //>quote
-        text = text.replace(/(^|<br>)(>[^>].*?)($|<br>)/g, "$1<span class='quote'>$2</span>$3");
+            var skippedImagesCount = skippedReplies.filter(post => post.pic !== undefined).length;
 
-        newMessage.getElementsByClassName("messageText")[0].innerHTML = text;
+            var spacer = document.createElement("div");
+            spacer.style = "margin:5px;font-size:20px";
+            if (skippedReplies.length)
+                spacer.innerHTML = "Some messages skipped (" + skippedReplies.length + ").";
+
+            if (skippedImagesCount)
+                spacer.innerHTML += " Also some images (" + skippedImagesCount + ").";
+
+            contentDiv.appendChild(spacer);
+
+            //last 3 (or less) replies
+            replies.slice(-3).forEach(function (reply) {
+                contentDiv.appendChild(renderMessage(reply));
+            });
+        })
     }
-    var refs = newMessage.getElementsByClassName("msg_ref");
-    for (var i = 0; i < refs.length; i++) {
-        refs[i].addEventListener("click", showRef, false);
-        let href = refs[i].href.split("#")[1];
-        let refPath = Routing.completeMessageReference(href, routeData);
-        refs[i].href = "#" + refPath.uri;
-    }
-    return newMessage;
 }
 
 async function showRef(evt) {
@@ -516,60 +570,6 @@ const DataRepository = new function () {
             return threads[threadId];
         }
     }
-}
-
-/** Render thread data into view
- * @param {ThreadData} threadData Thread's data
- * @param {string} id thread's id
- */
-function renderThread(threadData, id) {
-    contentDiv.innerHTML = "";
-    threadData.messages.forEach((messageData, index) => {
-        let messagePath = Routing.getPath({ message: index });
-        contentDiv.appendChild(renderMessage(messageData, messagePath));
-    });
-
-    let OpMessage = threadData[0];
-    document.title = defaultTitle + (OpMessage.title ? OpMessage.title : OpMessage.text.substring(0, 50));
-}
-
-/**
- * Renders a board
- * @param {string[])} boardData - array of thread IDs relative to board. That is, just numbers.
- * @param {string} boardData.id - board's own id.
- */
-function renderBoard(boardData) {
-    contentDiv.innerHTML = "";
-    var isFirst = true;
-    boardData.forEach(threadId => {
-        if (isFirst) isFirst = false;
-        else contentDiv.appendChild(document.createElement("hr"));
-
-        var thread = threads[boardData.id + "/" + boardData[threadId]];
-        var opPostRendered = renderMessage(thread[0]);
-        opPostRendered.className = "OP-post";
-        contentDiv.appendChild(opPostRendered);
-
-        var replies = thread.slice(1);
-        var skippedReplies = replies.slice(0, -3);
-
-        var skippedImagesCount = skippedReplies.filter(post => post.pic !== undefined).length;
-
-        var spacer = document.createElement("div");
-        spacer.style = "margin:5px;font-size:20px";
-        if (skippedReplies.length)
-            spacer.innerHTML = "Some messages skipped (" + skippedReplies.length + ").";
-
-        if (skippedImagesCount)
-            spacer.innerHTML += " Also some images (" + skippedImagesCount + ").";
-
-        contentDiv.appendChild(spacer);
-
-        //last 3 (or less) replies
-        replies.slice(-3).forEach(function (reply) {
-            contentDiv.appendChild(renderMessage(reply));
-        });
-    })
 }
 
 /**
