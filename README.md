@@ -1,5 +1,5 @@
 # January 2022 update: out of hiatus.
-The code is being currently re-written in TypeScript in a separate project ([jsib-ts](https://github.com/various-projects/jsib-ts)), that will replace this one once its current functionality level is reached. A more modular approach is utilized and the abstractions are separated as much as it makes sense.
+The code is being currently re-written in TypeScript in a separate project ([jsib-ts](https://github.com/various-projects/jsib-ts)), that will replace this one once the current functionality level is reached. A more modular approach is utilized and the abstractions are separated as much as it makes sense.
 
 # JSib
 Javascript (anonymous) imageboard engine. Well, mostly Javacript. Has a couple of PHP server-side functions ATM.
